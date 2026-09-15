@@ -19,12 +19,15 @@ def game_details(match):
     st.caption(f"{match['type']} / {match['discipline']}" + (f' / Race to {race}' if race is not None else ''))
 
 
+force_refresh = st.checkbox('Fetch fresh results (skip cache)', value=False)
+st.caption('Completed checks are reused for up to 2 minutes. Select fresh results after correcting an entry.')
+
 if st.button('Check all leagues', type='primary'):
     st.session_state.results = {}
     progress = st.progress(0, text='Connecting to CueScore…')
     for index, (league, tournament_id) in enumerate(TOURNAMENTS.items()):
         progress.progress(index / 3, text=f'Checking {league} — reading fixtures and individual matches…')
-        st.session_state.results[league] = check_league(league, tournament_id)
+        st.session_state.results[league] = check_league(league, tournament_id, force_refresh=force_refresh)
     progress.empty()
 
 results = st.session_state.get('results', {})
@@ -44,6 +47,8 @@ for column, league in zip(st.columns(3), TOURNAMENTS):
                 st.success('No invalid entries found')
             st.caption(f"Format: {len(result['format_issues'])} · Scores: {len(result['score_issues'])} · Players: {len(result['player_issues'])}")
             st.caption(f"Special results: {len(result['special_scores'])}")
+            if result.get("from_cache"):
+                st.caption("Using a recent completed check")
             st.caption(f"Last checked: {result['checked_at']} (Amsterdam)")
 
 if not results:
