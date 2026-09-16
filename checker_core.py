@@ -15,16 +15,30 @@ TOURNAMENTS = {
 }
 
 
-# Every team match should contain these six games.
-# ORDER DOES NOT MATTER.
-
-REQUIRED_FORMATS = Counter({
-    ("Doubles", "10-Ball"): 1,
-    ("Singles", "8-Ball"): 2,
-    ("Singles", "Straightpool"): 1,
-    ("Singles", "9-Ball"): 1,
-    ("Singles", "10-Ball"): 1,
-})
+# Required counts and race lengths are keyed by league, type and discipline.
+# Format order does not matter.
+LEAGUE_RULES = {
+    "Eerste klasse": {
+        ("Doubles", "10-Ball"): (1, 5),
+        ("Singles", "8-Ball"): (2, 5),
+        ("Singles", "Straightpool"): (1, 60),
+        ("Singles", "9-Ball"): (1, 6),
+        ("Singles", "10-Ball"): (1, 5),
+    },
+    "Tweede klasse": {
+        ("Doubles", "10-Ball"): (1, 5),
+        ("Singles", "8-Ball"): (2, 5),
+        ("Singles", "Straightpool"): (1, 50),
+        ("Singles", "9-Ball"): (1, 6),
+        ("Singles", "10-Ball"): (1, 5),
+    },
+    "Derde klasse": {
+        ("Doubles", "10-Ball"): (1, 4),
+        ("Singles", "8-Ball"): (2, 4),
+        ("Singles", "9-Ball"): (2, 5),
+        ("Singles", "10-Ball"): (1, 5),
+    },
+}
 
 
 DISCIPLINE_NAMES = {
@@ -133,6 +147,9 @@ def check_tournament(
     tournament_id
 ):
 
+    rules = LEAGUE_RULES[league_name]
+    required_formats = Counter({key: count for key, (count, race) in rules.items()})
+
     print()
     print("=" * 70)
     print(
@@ -174,6 +191,7 @@ def check_tournament(
         return {
             "league": league_name,
             "format_issues": [],
+            "race_to_issues": [],
             "score_issues": [],
             "player_issues": [],
             "special_scores": [],
@@ -196,6 +214,7 @@ def check_tournament(
         return {
             "league": league_name,
             "format_issues": [],
+            "race_to_issues": [],
             "score_issues": [],
             "player_issues": [],
             "special_scores": [],
@@ -611,6 +630,7 @@ def check_tournament(
     # ========================================================
 
     format_issues = []
+    race_to_issues = []
     score_issues = []
     special_scores = []
     player_issues = []
@@ -686,17 +706,17 @@ def check_tournament(
 
         if (
             actual_formats
-            != REQUIRED_FORMATS
+            != required_formats
         ):
 
             missing = (
-                REQUIRED_FORMATS
+                required_formats
                 - actual_formats
             )
 
             unexpected = (
                 actual_formats
-                - REQUIRED_FORMATS
+                - required_formats
             )
 
 
@@ -1077,6 +1097,19 @@ def check_tournament(
             continue
 
 
+        rule = rules.get((match["type"], match["discipline"]))
+        expected_race_to = rule[1] if rule else None
+        race_is_correct = rule is not None and match["race_to"] == expected_race_to
+        # Check setup even when scores are blank, special, or Straightpool.
+        # Unexpected formats are handled by format validation.
+        if rule is not None and not race_is_correct:
+            race_to_issues.append({
+                "match": match,
+                "fixture": fixtures[match["team_match_id"]],
+                "expected_race_to": expected_race_to,
+                "actual_race_to": match["race_to"],
+            })
+
         score_a = match["score_a"]
         score_b = match["score_b"]
 
@@ -1112,7 +1145,7 @@ def check_tournament(
         race_to = match["race_to"]
 
 
-        if race_to is None:
+        if not race_is_correct:
             continue
 
 
@@ -1414,6 +1447,15 @@ def check_tournament(
 
 
     # ========================================================
+    # RACE-TO ISSUES
+    # ========================================================
+
+    for issue in race_to_issues:
+        print("RACE-TO ISSUE")
+        print_fixture_header(league_name, issue["fixture"], issue["match"]["match_no"])
+        print(f"Expected Race to {issue['expected_race_to']}; actual Race to {issue['actual_race_to']}")
+
+    # ========================================================
     # SPECIAL RESULTS
     # ========================================================
 
@@ -1483,7 +1525,11 @@ def check_tournament(
     )
 
 
+    print(f"Race-to issues: {len(race_to_issues)}")
+
     return {
+
+        "race_to_issues": race_to_issues,
 
         "league":
             league_name,

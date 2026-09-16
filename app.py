@@ -38,14 +38,14 @@ for column, league in zip(st.columns(3), TOURNAMENTS):
         if result is None:
             st.info('Not checked yet')
         else:
-            total = sum(len(result[key]) for key in ['format_issues', 'score_issues', 'player_issues'])
+            total = sum(len(result[key]) for key in ['format_issues', 'race_to_issues', 'score_issues', 'player_issues'])
             if result['incomplete']:
                 st.warning('Check incomplete — retry')
             elif total:
                 st.error(f'{total} issue(s) detected')
             else:
                 st.success('No invalid entries found')
-            st.caption(f"Format: {len(result['format_issues'])} · Scores: {len(result['score_issues'])} · Players: {len(result['player_issues'])}")
+            st.caption(f"Format: {len(result['format_issues'])} · Race-to: {len(result['race_to_issues'])} · Scores: {len(result['score_issues'])} · Players: {len(result['player_issues'])}")
             st.caption(f"Special results: {len(result['special_scores'])}")
             if result.get("from_cache"):
                 st.caption("Using a recent completed check")
@@ -57,15 +57,19 @@ else:
     for league, result in results.items():
         if result['incomplete']:
             st.warning(f"{league}: Some CueScore data could not be read. Any findings below are partial; this league has not received a complete check. Please try again.")
-        for key, title in [('format_issues', 'Format issue'), ('score_issues', 'Score issue'), ('player_issues', 'Player participation issue'), ('special_scores', 'Special result')]:
+        for key, title in [('format_issues', 'Format issue'), ('race_to_issues', 'Race-to issue'), ('score_issues', 'Score issue'), ('player_issues', 'Player participation issue'), ('special_scores', 'Special result')]:
             for issue in result[key]:
                 with st.container(border=True):
                     st.markdown(f'**{title}**')
                     fixture_context(league, issue['fixture'])
-                    if key in ('score_issues', 'special_scores'):
+                    if key in ('race_to_issues', 'score_issues', 'special_scores'):
                         match = issue['match']
                         game_details(match)
-                        if key == 'score_issues':
+                        if key == 'race_to_issues':
+                            actual = issue['actual_race_to']
+                            actual_text = str(actual) if actual is not None else 'missing or invalid'
+                            st.error(f"Problem: Expected Race to {issue['expected_race_to']}; actual Race to {actual_text}.")
+                        elif key == 'score_issues':
                             st.error(f"Problem: Neither player has a valid Race to {match['race_to']} winning score.")
                         else:
                             st.info('A non-numeric result (such as FF or WD) was recorded. Review it manually; it is not counted as an invalid entry.')
@@ -95,4 +99,4 @@ else:
                             for game in issue['games']:
                                 game_details(game)
 
-st.caption('Uses the existing checker rules: untouched fixtures are skipped; participation is checked when all six games are configured; Straightpool is excluded from ordinary race-to score checks. Special results are reported separately.')
+st.caption('Uses league-specific formats and race lengths: untouched fixtures are skipped; participation is checked when all six games are configured; Straightpool is excluded from ordinary race-to score checks. Special results are reported separately.')

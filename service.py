@@ -74,7 +74,7 @@ def _check_league(league, tournament_id):
     try:
         result = check(league, tournament_id)
     except Exception:
-        result = dict(league=league, error=True, format_issues=[], score_issues=[], player_issues=[], special_scores=[])
+        result = dict(league=league, error=True, format_issues=[], race_to_issues=[], score_issues=[], player_issues=[], special_scores=[])
         failures.append('Unexpected CueScore data')
     executor.shutdown(wait=True, cancel_futures=True)
     result['incomplete'] = bool(failures) or result['error']
