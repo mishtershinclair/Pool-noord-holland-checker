@@ -1,5 +1,6 @@
 import streamlit as st
-from service import TOURNAMENTS, check_league
+from service import TOURNAMENTS, check_league, get_todays_matches, AMSTERDAM
+from datetime import datetime
 
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
 st.title('🎱 Pool Noord-Holland checker ☕')
@@ -17,6 +18,37 @@ def game_details(match):
         st.text(f"{match['player_a']}  {match['score_a']}–{match['score_b']}  {match['player_b']}")
     race = match.get('race_to')
     st.caption(f"{match['type']} / {match['discipline']}" + (f' / Race to {race}' if race is not None else ''))
+
+
+if st.button("Today's matches", help="Show today's fixtures across all three leagues"):
+    with st.spinner("Reading today's fixtures from CueScore…"):
+        st.session_state.today_schedule = get_todays_matches()
+
+schedule = st.session_state.get('today_schedule')
+if schedule and schedule['date'] != datetime.now(AMSTERDAM).date().isoformat():
+    st.info("The date has changed. Select Today's matches to load the new schedule.")
+    schedule = None
+if schedule:
+    st.subheader(f"Today's matches · {schedule['date_label']}")
+    st.caption('Times shown in Amsterdam local time. Click Today’s matches again to refresh.')
+    if schedule['errors']:
+        st.warning('Could not read fixtures for: ' + ', '.join(schedule['errors']) + '. Please retry; the schedule may be incomplete.')
+    for league, count in schedule['undated'].items():
+        st.caption(f'{league}: {count} fixture(s) have no usable scheduled date and could not be assigned to today.')
+    if not schedule['matches']:
+        if schedule['errors'] or schedule['undated']:
+            st.info('No matches for today found in the available dated fixtures.')
+        else:
+            st.info('No matches scheduled for today in these three leagues.')
+    for match in schedule['matches']:
+        with st.container(border=True):
+            st.caption(f"{match['league']} · {match['time']} · Match {match['match_no']}")
+            st.subheader(f"{match['team_a']} vs {match['team_b']}")
+            st.text('📍 ' + match['venue'])
+            if match['address']:
+                st.text(match['address'])
+            if match['venue_source']:
+                st.caption(match['venue_source'])
 
 
 force_refresh = st.checkbox('Fetch fresh results (skip cache)', value=False)

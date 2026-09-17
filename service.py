@@ -81,3 +81,73 @@ def _check_league(league, tournament_id):
     result['failed_requests'] = len(failures)
     result['checked_at'] = datetime.now(ZoneInfo('Europe/Amsterdam')).strftime('%d %B %Y at %H:%M:%S')
     return result
+
+
+AMSTERDAM = ZoneInfo('Europe/Amsterdam')
+
+
+def scheduled_start(value):
+    """CueScore timestamps include UTC/offset; never guess for ambiguous times."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        start = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        return start.astimezone(AMSTERDAM) if start.tzinfo else None
+    except ValueError:
+        return None
+
+
+def fixture_location(fixture):
+    venue = fixture.get('venue')
+    source = 'Fixture venue'
+    if not isinstance(venue, dict) or not venue.get('name'):
+        home = fixture.get('playerA') or {}
+        venue = home.get('venue') if isinstance(home, dict) else None
+        source = 'Home team venue — confirm if playing elsewhere'
+    if not isinstance(venue, dict) or not venue.get('name'):
+        return 'Location not listed', '', ''
+    return venue['name'], venue.get('address') or '', source
+
+
+def get_todays_matches(now=None):
+    """Read only the three fixture lists, independently of result validation."""
+    now = now or datetime.now(AMSTERDAM)
+    today = now.astimezone(AMSTERDAM).date()
+    result = {'date': today.isoformat(), 'date_label': today.strftime('%d %B %Y'),
+              'matches': [], 'errors': [], 'undated': {}}
+    for league, tournament_id in TOURNAMENTS.items():
+        try:
+            response = requests.get(
+                f'https://api.cuescore.com/tournament/?id={tournament_id}', timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            if not isinstance(data, dict) or not isinstance(data.get('matches'), list):
+                raise ValueError('Missing fixture list')
+            league_matches = []
+            undated = 0
+            for fixture in data['matches']:
+                if not isinstance(fixture, dict):
+                    raise ValueError('Invalid fixture')
+                start = scheduled_start(fixture.get('starttime'))
+                if start is None:
+                    undated += 1
+                    continue
+                if start.date() != today:
+                    continue
+                venue, address, source = fixture_location(fixture)
+                team_a = fixture.get('playerA') or {}
+                team_b = fixture.get('playerB') or {}
+                league_matches.append({
+                    'league': league, 'match_no': fixture.get('matchno', '?'),
+                    'team_a': team_a.get('name') or 'Team not listed',
+                    'team_b': team_b.get('name') or 'Team not listed',
+                    'time': start.strftime('%H:%M'), 'venue': venue,
+                    'address': address, 'venue_source': source,
+                })
+            result['matches'].extend(league_matches)
+            if undated:
+                result['undated'][league] = undated
+        except (requests.RequestException, ValueError, TypeError, AttributeError):
+            result['errors'].append(league)
+    result['matches'].sort(key=lambda match: (match['league'], match['time'], str(match['match_no'])))
+    return result
