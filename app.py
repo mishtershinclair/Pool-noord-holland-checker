@@ -1,6 +1,6 @@
 import streamlit as st
 from service import TOURNAMENTS, check_league
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import requests
 
@@ -31,11 +31,13 @@ def fixture_location(fixture):
     return venue['name'], venue.get('address') or '', source
 
 
-def get_todays_matches(now=None):
+def get_scheduled_matches(day_offset=0, now=None):
     """Read only the three fixture lists, independently of result validation."""
     now = now or datetime.now(AMSTERDAM)
-    today = now.astimezone(AMSTERDAM).date()
-    result = {'date': today.isoformat(), 'date_label': today.strftime('%d %B %Y'),
+    base_date = now.astimezone(AMSTERDAM).date()
+    target_date = base_date + timedelta(days=day_offset)
+    result = {'date': target_date.isoformat(), 'date_label': target_date.strftime('%d %B %Y'),
+              'base_date': base_date.isoformat(), 'day_offset': day_offset,
               'matches': [], 'errors': [], 'undated': {}}
     for league, tournament_id in TOURNAMENTS.items():
         try:
@@ -54,7 +56,7 @@ def get_todays_matches(now=None):
                 if start is None:
                     undated += 1
                     continue
-                if start.date() != today:
+                if start.date() != target_date:
                     continue
                 venue, address, source = fixture_location(fixture)
                 team_a = fixture.get('playerA') or {}
@@ -94,26 +96,38 @@ def game_details(match):
     st.caption(f"{match['type']} / {match['discipline']}" + (f' / Race to {race}' if race is not None else ''))
 
 
-if st.button("Today's matches", help="Show today's fixtures across all three leagues"):
-    with st.spinner("Reading today's fixtures from CueScore…"):
-        st.session_state.today_schedule = get_todays_matches()
+with st.container(border=True):
+    st.subheader('📅 Match schedule')
+    st.caption('See who is playing and where, across all three leagues.')
+    today_column, tomorrow_column = st.columns(2)
+    with today_column:
+        show_today = st.button("📅 See today's matches", type='primary', use_container_width=True)
+    with tomorrow_column:
+        show_tomorrow = st.button("📅 See tomorrow's matches", type='primary', use_container_width=True)
 
-schedule = st.session_state.get('today_schedule')
-if schedule and schedule['date'] != datetime.now(AMSTERDAM).date().isoformat():
-    st.info("The date has changed. Select Today's matches to load the new schedule.")
+if show_today or show_tomorrow:
+    day_offset = 1 if show_tomorrow else 0
+    day_label = 'tomorrow' if day_offset else 'today'
+    with st.spinner(f"Reading {day_label}'s fixtures from CueScore…"):
+        st.session_state.match_schedule = get_scheduled_matches(day_offset)
+
+schedule = st.session_state.get('match_schedule')
+if schedule and schedule['base_date'] != datetime.now(AMSTERDAM).date().isoformat():
+    st.info('The date has changed. Select a schedule button to refresh the fixtures.')
     schedule = None
 if schedule:
-    st.subheader(f"Today's matches · {schedule['date_label']}")
-    st.caption('Times shown in Amsterdam local time. Click Today’s matches again to refresh.')
+    day_label = 'tomorrow' if schedule['day_offset'] else 'today'
+    st.subheader(f"{day_label.capitalize()}'s matches · {schedule['date_label']}")
+    st.caption('Times shown in Amsterdam local time. Select either schedule button to refresh.')
     if schedule['errors']:
         st.warning('Could not read fixtures for: ' + ', '.join(schedule['errors']) + '. Please retry; the schedule may be incomplete.')
     for league, count in schedule['undated'].items():
-        st.caption(f'{league}: {count} fixture(s) have no usable scheduled date and could not be assigned to today.')
+        st.caption(f'{league}: {count} fixture(s) have no usable scheduled date and could not be assigned to {day_label}.')
     if not schedule['matches']:
         if schedule['errors'] or schedule['undated']:
-            st.info('No matches for today found in the available dated fixtures.')
+            st.info(f'No matches for {day_label} found in the available dated fixtures.')
         else:
-            st.info('No matches scheduled for today in these three leagues.')
+            st.info(f'No matches scheduled for {day_label} in these three leagues.')
     for match in schedule['matches']:
         with st.container(border=True):
             st.caption(f"{match['league']} · {match['time']} · Match {match['match_no']}")
