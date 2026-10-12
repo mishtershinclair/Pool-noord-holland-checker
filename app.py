@@ -1,4 +1,5 @@
 import streamlit as st
+from contextlib import contextmanager
 from service import TOURNAMENTS, check_league
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -181,6 +182,42 @@ def show_doubles_table(rows):
                 '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>', unsafe_allow_html=True)
 
 
+@contextmanager
+def doubles_loading(season, league, theme):
+    """Show a lightweight animation and always remove it when loading ends."""
+    placeholder = st.empty()
+    message = ('Pulling a fresh round of results…' if theme == 'beer'
+               else 'Racking up the results…')
+    scene = ('<div class="pour"></div><div class="glass"><div class="beer"></div></div>'
+             if theme == 'beer' else
+             '<div class="pocket"></div><div class="ball ball-one">8</div>'
+             '<div class="ball ball-two">1</div><div class="ball ball-three">3</div>')
+    placeholder.markdown('''<style>
+    .mvp-loading{display:flex;align-items:center;gap:18px;padding:16px 8px;flex-wrap:wrap}
+    .mvp-loading .scene{position:relative;width:150px;height:94px;overflow:hidden;flex-shrink:0}
+    .mvp-loading .glass{position:absolute;left:47px;top:22px;width:49px;height:63px;border:3px solid #9aaebc;border-radius:3px 3px 13px 13px;overflow:hidden;background:#ffffff18}
+    .mvp-loading .beer{position:absolute;bottom:0;width:100%;height:0;background:#e9a621;border-top:9px solid #fff4dc;animation:mvp-fill 3s ease-in-out infinite}
+    .mvp-loading .pour{position:absolute;left:69px;top:0;width:7px;height:77px;background:#e9a621;border-radius:4px;animation:mvp-pour 3s infinite}
+    @keyframes mvp-fill{0%,10%{height:0}75%,95%{height:48px}100%{height:0}}
+    @keyframes mvp-pour{0%,75%{opacity:1}80%,100%{opacity:0}}
+    .mvp-loading.pool .scene{background:#17664d;border:5px solid #68432b;border-radius:10px}
+    .mvp-loading .pocket{position:absolute;right:7px;top:28px;width:34px;height:34px;background:#101516;border-radius:50%;box-shadow:0 0 0 3px #0e4636}
+    .mvp-loading .ball{position:absolute;left:-25px;top:32px;width:25px;height:25px;border-radius:50%;background:#17191d;color:white;text-align:center;font:bold 13px/25px sans-serif;animation:mvp-roll 3.6s linear infinite}
+    .mvp-loading .ball-two{background:#e9bb26;color:#17202a;animation-delay:1.2s}
+    .mvp-loading .ball-three{background:#c44343;animation-delay:2.4s}
+    @keyframes mvp-roll{0%{transform:translateX(0) rotate(0);opacity:0}8%{opacity:1}68%{transform:translateX(130px) rotate(300deg) scale(1);opacity:1}80%,100%{transform:translateX(137px) rotate(360deg) scale(0);opacity:0}}
+    .mvp-loading strong{font-size:18px}.mvp-loading small{display:block;margin-top:5px;opacity:.75}
+    @media(prefers-reduced-motion:reduce){.mvp-loading *{animation:none!important}.mvp-loading .beer{height:40px}.mvp-loading .pour{display:none}.mvp-loading .ball{left:10px}.mvp-loading .ball-two{left:42px}.mvp-loading .ball-three{left:74px}}
+    </style>''' + '<div class="mvp-loading ' + theme + '" role="status" aria-live="polite">'
+        + '<div class="scene" aria-hidden="true">' + scene + '</div><div><strong>'
+        + escape(message) + '</strong><small>' + escape(season + ' · ' + league)
+        + '</small></div></div>', unsafe_allow_html=True)
+    try:
+        yield
+    finally:
+        placeholder.empty()
+
+
 DOUBLES_SEASONS = {
     '2026–27': dict(TOURNAMENTS),
     '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
@@ -204,12 +241,15 @@ with st.container(border=True):
                     mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
     if mvp_selection:
         season, leagues = mvp_selection
+        load_number = st.session_state.get('doubles_load_number', 0)
+        loading_theme = 'beer' if load_number % 2 == 0 else 'pool'
+        st.session_state.doubles_load_number = load_number + 1
         st.session_state.doubles_active_season = season
         if len(leagues) == 1:
             st.session_state.doubles_active_league = leagues[0]
         season_results = st.session_state.setdefault('doubles_results', {}).setdefault(season, {})
         for league in leagues:
-            with st.spinner(f'Reading {season} doubles results and player rosters for {league}…'):
+            with doubles_loading(season, league, loading_theme):
                 try:
                     season_results[league] = load_doubles_league(league, DOUBLES_SEASONS[season][league])
                 except (requests.RequestException, ValueError, KeyError, TypeError):
