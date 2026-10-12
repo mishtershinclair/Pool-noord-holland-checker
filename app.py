@@ -181,9 +181,9 @@ def show_doubles_table(rows):
                 '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>', unsafe_allow_html=True)
 
 
-if st.session_state.get('doubles_ranking_version') != 2:
+if st.session_state.get('doubles_ranking_version') != 3:
     st.session_state.pop('doubles_results', None)
-    st.session_state.doubles_ranking_version = 2
+    st.session_state.doubles_ranking_version = 3
 
 
 with st.container(border=True):
@@ -204,7 +204,7 @@ with st.container(border=True):
                     st.session_state.doubles_results[league] = load_doubles_league(league, TOURNAMENTS[league])
                 except (requests.RequestException, ValueError, KeyError, TypeError):
                     st.session_state.doubles_results[league] = {'error': True}
-    st.caption('Ranked by win percentage, then matches played, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
+    st.caption('Ranked by win percentage, then matches played, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
     st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results.')
 
 mvp_results = st.session_state.get('doubles_results', {})
