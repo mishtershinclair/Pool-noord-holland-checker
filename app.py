@@ -83,8 +83,58 @@ def get_scheduled_matches(day_offset=0, now=None):
 
 
 
+def next_loading_theme():
+    count = st.session_state.get('loading_animation_count', 0)
+    st.session_state.loading_animation_count = count + 1
+    return ('beer', 'pool', 'coffee')[count % 3]
+
+
+@contextmanager
+def loading_indicator(detail, theme=None):
+    """Show a lightweight animation and always remove it when loading ends."""
+    theme = theme or next_loading_theme()
+    placeholder = st.empty()
+    message = {'beer': 'Pulling a fresh round of results…',
+               'pool': 'Racking up the results…', 'coffee': 'Brewing your results… Lekker bij de coffee'}[theme]
+    scene = {'beer': '<div class="pour"></div><div class="glass"><div class="beer"></div></div>',
+             'pool': '<div class="pocket"></div><div class="ball ball-one">8</div><div class="ball ball-two">1</div><div class="ball ball-three">3</div>',
+             'coffee': '<div class="coffee-drip"></div><div class="cup"><div class="coffee-fill"></div></div><div class="cup-handle"></div><div class="saucer"></div>'}[theme]
+    placeholder.markdown('''<style>
+    .mvp-loading{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:999990;box-sizing:border-box;width:min(540px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid #9aaebc;border-radius:14px;background:#fffdf7;color:#182235;box-shadow:0 5px 24px #0004;pointer-events:none}
+    .mvp-loading .scene{position:relative;width:150px;height:94px;overflow:hidden;flex-shrink:0}
+    .mvp-loading .glass{position:absolute;left:47px;top:22px;width:49px;height:63px;border:3px solid #9aaebc;border-radius:3px 3px 13px 13px;overflow:hidden;background:#ffffff18}
+    .mvp-loading .beer{position:absolute;bottom:0;width:100%;height:0;background:#e9a621;border-top:9px solid #fff4dc;animation:mvp-fill 3s ease-in-out infinite}
+    .mvp-loading .pour{position:absolute;left:69px;top:0;width:7px;height:77px;background:#e9a621;border-radius:4px;animation:mvp-pour 3s infinite}
+    @keyframes mvp-fill{0%,10%{height:0}75%,95%{height:48px}100%{height:0}}
+    @keyframes mvp-pour{0%,75%{opacity:1}80%,100%{opacity:0}}
+    .mvp-loading.pool .scene{background:#17664d;border:5px solid #68432b;border-radius:10px}
+    .mvp-loading .pocket{position:absolute;right:7px;top:28px;width:34px;height:34px;background:#101516;border-radius:50%;box-shadow:0 0 0 3px #0e4636}
+    .mvp-loading .ball{position:absolute;left:-25px;top:32px;width:25px;height:25px;border-radius:50%;background:#17191d;color:white;text-align:center;font:bold 13px/25px sans-serif;animation:mvp-roll 3.6s linear infinite}
+    .mvp-loading .ball-two{background:#e9bb26;color:#17202a;animation-delay:1.2s}
+    .mvp-loading .ball-three{background:#c44343;animation-delay:2.4s}
+    @keyframes mvp-roll{0%{transform:translateX(0) rotate(0);opacity:0}8%{opacity:1}68%{transform:translateX(130px) rotate(300deg) scale(1);opacity:1}80%,100%{transform:translateX(137px) rotate(360deg) scale(0);opacity:0}}
+    .mvp-loading strong{font-size:18px}.mvp-loading small{display:block;margin-top:5px;opacity:.75}
+    .mvp-loading .cup{position:absolute;left:42px;top:31px;width:58px;height:48px;border:4px solid #c8b9a5;border-radius:3px 3px 20px 20px;overflow:hidden;background:#fff}
+    .mvp-loading .coffee-fill{position:absolute;bottom:0;width:100%;background:#714324;animation:mvp-coffee 3s infinite}
+    .mvp-loading .coffee-drip{position:absolute;left:69px;top:5px;width:5px;height:63px;background:#714324;animation:mvp-pour 3s infinite}
+    .mvp-loading .cup-handle{position:absolute;left:104px;top:40px;width:15px;height:24px;border:4px solid #c8b9a5;border-left:0;border-radius:0 14px 14px 0}
+    .mvp-loading .saucer{position:absolute;left:31px;top:86px;width:84px;height:5px;border-radius:50%;background:#c8b9a5}
+    @keyframes mvp-coffee{0%,10%{height:0}75%,95%{height:36px}100%{height:0}}
+    @media(max-width:600px){.mvp-loading .scene{zoom:.65}.mvp-loading strong{font-size:16px}.mvp-loading small{font-size:12px}}
+    @media(prefers-reduced-motion:reduce){.mvp-loading *{animation:none!important}.mvp-loading .beer{height:40px}.mvp-loading .coffee-fill{height:36px}.mvp-loading .coffee-drip{display:none}.mvp-loading .pour{display:none}.mvp-loading .ball{left:10px}.mvp-loading .ball-two{left:42px}.mvp-loading .ball-three{left:74px}}
+    </style>''' + '<div class="mvp-loading ' + theme + '" role="status" aria-live="polite">'
+        + '<div class="scene" aria-hidden="true">' + scene + '</div><div><strong>'
+        + escape(message) + '</strong><small>' + escape(detail)
+        + '</small></div></div>', unsafe_allow_html=True)
+    try:
+        yield
+    finally:
+        placeholder.empty()
+
+
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
 st.title('🎱 Pool Noord-Holland checker ☕')
+st.caption('If you encounter any issues, please contact Matt Sinclair.')
 st.caption('2026/2027 season · Check competition entries on CueScore · Doubles MVP compact tables')
 
 
@@ -113,7 +163,7 @@ with st.container(border=True):
 if show_today or show_tomorrow:
     day_offset = 1 if show_tomorrow else 0
     day_label = 'tomorrow' if day_offset else 'today'
-    with st.spinner(f"Reading {day_label}'s fixtures from CueScore…"):
+    with loading_indicator(f"Reading {day_label}'s fixtures from CueScore…"):
         st.session_state.match_schedule = get_scheduled_matches(day_offset)
 
 schedule = st.session_state.get('match_schedule')
@@ -182,42 +232,6 @@ def show_doubles_table(rows):
                 '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>', unsafe_allow_html=True)
 
 
-@contextmanager
-def doubles_loading(season, league, theme):
-    """Show a lightweight animation and always remove it when loading ends."""
-    placeholder = st.empty()
-    message = ('Pulling a fresh round of results…' if theme == 'beer'
-               else 'Racking up the results…')
-    scene = ('<div class="pour"></div><div class="glass"><div class="beer"></div></div>'
-             if theme == 'beer' else
-             '<div class="pocket"></div><div class="ball ball-one">8</div>'
-             '<div class="ball ball-two">1</div><div class="ball ball-three">3</div>')
-    placeholder.markdown('''<style>
-    .mvp-loading{display:flex;align-items:center;gap:18px;padding:16px 8px;flex-wrap:wrap}
-    .mvp-loading .scene{position:relative;width:150px;height:94px;overflow:hidden;flex-shrink:0}
-    .mvp-loading .glass{position:absolute;left:47px;top:22px;width:49px;height:63px;border:3px solid #9aaebc;border-radius:3px 3px 13px 13px;overflow:hidden;background:#ffffff18}
-    .mvp-loading .beer{position:absolute;bottom:0;width:100%;height:0;background:#e9a621;border-top:9px solid #fff4dc;animation:mvp-fill 3s ease-in-out infinite}
-    .mvp-loading .pour{position:absolute;left:69px;top:0;width:7px;height:77px;background:#e9a621;border-radius:4px;animation:mvp-pour 3s infinite}
-    @keyframes mvp-fill{0%,10%{height:0}75%,95%{height:48px}100%{height:0}}
-    @keyframes mvp-pour{0%,75%{opacity:1}80%,100%{opacity:0}}
-    .mvp-loading.pool .scene{background:#17664d;border:5px solid #68432b;border-radius:10px}
-    .mvp-loading .pocket{position:absolute;right:7px;top:28px;width:34px;height:34px;background:#101516;border-radius:50%;box-shadow:0 0 0 3px #0e4636}
-    .mvp-loading .ball{position:absolute;left:-25px;top:32px;width:25px;height:25px;border-radius:50%;background:#17191d;color:white;text-align:center;font:bold 13px/25px sans-serif;animation:mvp-roll 3.6s linear infinite}
-    .mvp-loading .ball-two{background:#e9bb26;color:#17202a;animation-delay:1.2s}
-    .mvp-loading .ball-three{background:#c44343;animation-delay:2.4s}
-    @keyframes mvp-roll{0%{transform:translateX(0) rotate(0);opacity:0}8%{opacity:1}68%{transform:translateX(130px) rotate(300deg) scale(1);opacity:1}80%,100%{transform:translateX(137px) rotate(360deg) scale(0);opacity:0}}
-    .mvp-loading strong{font-size:18px}.mvp-loading small{display:block;margin-top:5px;opacity:.75}
-    @media(prefers-reduced-motion:reduce){.mvp-loading *{animation:none!important}.mvp-loading .beer{height:40px}.mvp-loading .pour{display:none}.mvp-loading .ball{left:10px}.mvp-loading .ball-two{left:42px}.mvp-loading .ball-three{left:74px}}
-    </style>''' + '<div class="mvp-loading ' + theme + '" role="status" aria-live="polite">'
-        + '<div class="scene" aria-hidden="true">' + scene + '</div><div><strong>'
-        + escape(message) + '</strong><small>' + escape(season + ' · ' + league)
-        + '</small></div></div>', unsafe_allow_html=True)
-    try:
-        yield
-    finally:
-        placeholder.empty()
-
-
 DOUBLES_SEASONS = {
     '2026–27': dict(TOURNAMENTS),
     '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
@@ -241,15 +255,13 @@ with st.container(border=True):
                     mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
     if mvp_selection:
         season, leagues = mvp_selection
-        load_number = st.session_state.get('doubles_load_number', 0)
-        loading_theme = 'beer' if load_number % 2 == 0 else 'pool'
-        st.session_state.doubles_load_number = load_number + 1
+        loading_theme = next_loading_theme()
         st.session_state.doubles_active_season = season
         if len(leagues) == 1:
             st.session_state.doubles_active_league = leagues[0]
         season_results = st.session_state.setdefault('doubles_results', {}).setdefault(season, {})
         for league in leagues:
-            with doubles_loading(season, league, loading_theme):
+            with loading_indicator(season + ' · ' + league, loading_theme):
                 try:
                     season_results[league] = load_doubles_league(league, DOUBLES_SEASONS[season][league])
                 except (requests.RequestException, ValueError, KeyError, TypeError):
@@ -299,11 +311,10 @@ for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
             check_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
 if check_selection:
     st.session_state.setdefault('results', {})
-    progress = st.progress(0, text='Connecting to CueScore…')
+    loading_theme = next_loading_theme()
     for index, league in enumerate(check_selection):
-        progress.progress(index / len(check_selection), text=f'Checking {league} — reading fixtures and individual matches…')
-        st.session_state.results[league] = check_league(league, TOURNAMENTS[league], force_refresh=force_refresh)
-    progress.empty()
+        with loading_indicator(f'Checking {league} · {index + 1} of {len(check_selection)}', loading_theme):
+            st.session_state.results[league] = check_league(league, TOURNAMENTS[league], force_refresh=force_refresh)
 
 # Shared ignores are loaded independently of cached CueScore checks.
 try:
@@ -316,7 +327,8 @@ ignored = {}
 store_ready = False
 if store.configured:
     try:
-        ignored = store.load()
+        with loading_indicator('Loading shared ignored findings…'):
+            ignored = store.load()
         store_ready = True
     except StoreError as error:
         st.warning(str(error) + ' All findings are shown until storage is available.')
@@ -441,7 +453,8 @@ for league, result in visible.items():
                         reason = st.text_input('Reason (optional, visible to everyone)', key='reason_' + identity, max_chars=500)
                         if st.button('Ignore from now on', key='ignore_' + identity):
                             try:
-                                store.ignore(finding_record(league, TOURNAMENTS[league], key, issue, reason), password)
+                                with loading_indicator('Saving shared findings…'):
+                                    store.ignore(finding_record(league, TOURNAMENTS[league], key, issue, reason), password)
                                 st.session_state.review_feedback = 'Finding ignored for everyone. Changed details will be shown again.'
                                 st.rerun()
                             except StoreError as error:
@@ -462,7 +475,8 @@ with st.expander(f'Previously ignored findings ({len(ignored)})'):
                 st.caption('Saved finding; no exact match in the currently loaded checks. It may have changed, been resolved, or not been checked.')
             if can_manage and st.button('Restore for everyone', key='restore_' + identity):
                 try:
-                    store.restore(record, password)
+                    with loading_indicator('Saving shared findings…'):
+                        store.restore(record, password)
                     st.session_state.review_feedback = 'Restore requested. If the finding still exists it will appear in the main results.'
                     st.rerun()
                 except StoreError as error:
@@ -470,4 +484,4 @@ with st.expander(f'Previously ignored findings ({len(ignored)})'):
 
 st.caption('Untouched fixtures are skipped. Missing names on recorded results are flagged. Participation is checked only when all six games have complete player selections. Straightpool is excluded from numeric score checks. Forfeits are notices, not score errors.')
 
-st.info('If you encounter any issues, please contact Matt Sinclair.')
+
