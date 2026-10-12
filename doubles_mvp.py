@@ -151,7 +151,7 @@ def aggregate(league, fixtures, details, rosters):
         return Fraction(stat['Played'], len(opportunities)) if opportunities else Fraction(0)
 
     def rank_key(stat):
-        return (Fraction(stat['Won'], stat['Played']), stat['Played'],
+        return (stat['Won'], Fraction(stat['Won'], stat['Played']),
                 stat['Racks won'] - stat['Racks lost'], participation(stat))
     ordered = sorted(stats.values(), key=lambda row: (*(-v for v in rank_key(row)), row['Player'].casefold()))
     table, unranked = [], []

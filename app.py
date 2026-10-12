@@ -186,9 +186,9 @@ DOUBLES_SEASONS = {
     '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
     '2024–25': {'Eerste klasse': 46283263, 'Tweede klasse': 46283257, 'Derde klasse': 46283269},
 }
-if st.session_state.get('doubles_ranking_version') != 5:
+if st.session_state.get('doubles_ranking_version') != 6:
     st.session_state.pop('doubles_results', None)
-    st.session_state.doubles_ranking_version = 5
+    st.session_state.doubles_ranking_version = 6
 
 
 with st.container(border=True):
