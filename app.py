@@ -148,11 +148,11 @@ def show_doubles_table(rows):
         st.caption('No results to show.')
         return
     standings = 'Player' in rows[0] and 'Win %' in rows[0]
-    columns = (['Rank', 'Player', 'Win %', 'Played', 'Won', 'Lost',
+    columns = (['Rank', 'Player', 'Won', 'Played', 'Win %',
                 'Racks won', 'Racks lost', 'Difference', 'Participation %']
                if standings else list(rows[0]))
-    labels = {'Rank': '#', 'Racks won': 'Racks<br>won', 'Racks lost': 'Racks<br>lost',
-              'Participation %': 'Participation<br>%'}
+    labels = {'Rank': '#', 'Racks won': 'Frames<br>won', 'Racks lost': 'Frames<br>lost',
+              'Difference': 'Frame<br>difference', 'Participation %': 'Participation<br>%'}
     header = ''.join('<th>' + (labels.get(column, escape(column)) if standings else escape(column)) + '</th>' for column in columns)
     body_rows = []
     for row in rows:
@@ -173,7 +173,7 @@ def show_doubles_table(rows):
                 '.doubles-scroll .doubles-large {width:auto;border-collapse:collapse;font-size:18px;line-height:1.3;}'
                 '.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td {padding:6px 8px;text-align:left;border-bottom:1px solid #8885;white-space:nowrap;}'
                 '.doubles-scroll .doubles-large th {font-size:15px;font-weight:700;vertical-align:bottom;}'
-                '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:right;}'
+                '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:center;}'
                 '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
                 '.doubles-player {font-size:18px;} '
                 '.doubles-team {font-size:13px;opacity:.75;white-space:normal;max-width:240px;margin-top:2px;}'
@@ -181,34 +181,44 @@ def show_doubles_table(rows):
                 '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>', unsafe_allow_html=True)
 
 
-if st.session_state.get('doubles_ranking_version') != 3:
+DOUBLES_SEASONS = {
+    '2026–27': dict(TOURNAMENTS),
+    '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
+}
+if st.session_state.get('doubles_ranking_version') != 5:
     st.session_state.pop('doubles_results', None)
-    st.session_state.doubles_ranking_version = 3
+    st.session_state.doubles_ranking_version = 5
 
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption('Load one league for a quicker check, or refresh all three.')
+    st.caption('Choose a season and league, or load all three leagues for that season.')
     mvp_selection = None
-    for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
-        with column:
-            if st.button(label, key='mvp_' + label, type='primary', use_container_width=True):
-                mvp_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
+    for season, tournaments in DOUBLES_SEASONS.items():
+        st.markdown(f'### {season}')
+        for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
+            with column:
+                if st.button(label, key='mvp_' + season + '_' + label, type='primary', use_container_width=True):
+                    mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
     if mvp_selection:
-        if len(mvp_selection) == 1:
-            st.session_state.doubles_active_league = mvp_selection[0]
-        st.session_state.setdefault('doubles_results', {})
-        for league in mvp_selection:
-            with st.spinner(f'Reading doubles results and player rosters for {league}…'):
+        season, leagues = mvp_selection
+        st.session_state.doubles_active_season = season
+        if len(leagues) == 1:
+            st.session_state.doubles_active_league = leagues[0]
+        season_results = st.session_state.setdefault('doubles_results', {}).setdefault(season, {})
+        for league in leagues:
+            with st.spinner(f'Reading {season} doubles results and player rosters for {league}…'):
                 try:
-                    st.session_state.doubles_results[league] = load_doubles_league(league, TOURNAMENTS[league])
+                    season_results[league] = load_doubles_league(league, DOUBLES_SEASONS[season][league])
                 except (requests.RequestException, ValueError, KeyError, TypeError):
-                    st.session_state.doubles_results[league] = {'error': True}
-    st.caption('Ranked by win percentage, then matches played, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
+                    season_results[league] = {'error': True}
+    st.caption('Ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
     st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results.')
 
-mvp_results = st.session_state.get('doubles_results', {})
+active_season = st.session_state.get('doubles_active_season', '2026–27')
+mvp_results = st.session_state.get('doubles_results', {}).get(active_season, {})
 if mvp_results:
+    st.subheader(f'Doubles standings · {active_season}')
     for tab, league in zip(st.tabs(list(TOURNAMENTS), key='doubles_active_league', on_change='rerun'), TOURNAMENTS):
         with tab:
             standing = mvp_results.get(league, {})
