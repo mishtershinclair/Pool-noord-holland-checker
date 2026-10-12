@@ -195,6 +195,8 @@ with st.container(border=True):
             if st.button(label, key='mvp_' + label, type='primary', use_container_width=True):
                 mvp_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
     if mvp_selection:
+        if len(mvp_selection) == 1:
+            st.session_state.doubles_active_league = mvp_selection[0]
         st.session_state.setdefault('doubles_results', {})
         for league in mvp_selection:
             with st.spinner(f'Reading doubles results and player rosters for {league}…'):
@@ -207,7 +209,7 @@ with st.container(border=True):
 
 mvp_results = st.session_state.get('doubles_results', {})
 if mvp_results:
-    for tab, league in zip(st.tabs(list(TOURNAMENTS)), TOURNAMENTS):
+    for tab, league in zip(st.tabs(list(TOURNAMENTS), key='doubles_active_league', on_change='rerun'), TOURNAMENTS):
         with tab:
             standing = mvp_results.get(league, {})
             if not standing:
