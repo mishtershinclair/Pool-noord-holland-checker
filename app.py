@@ -3,6 +3,7 @@ from service import TOURNAMENTS, check_league
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import requests
+from html import escape
 from doubles_mvp import load_league as load_doubles_league
 from review_store import (ReviewStore, StoreError, ISSUE_TITLES, ERROR_KEYS,
                           finding_id, finding_record)
@@ -83,7 +84,7 @@ def get_scheduled_matches(day_offset=0, now=None):
 
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
 st.title('🎱 Pool Noord-Holland checker ☕')
-st.caption('2026/2027 season · Check competition entries on CueScore · Doubles MVP update')
+st.caption('2026/2027 season · Check competition entries on CueScore · Doubles MVP update 2')
 
 
 def fixture_context(league, fixture):
@@ -142,56 +143,87 @@ if schedule:
                 st.caption(match['venue_source'])
 
 
+def show_doubles_table(rows):
+    if not rows:
+        st.caption('No results to show.')
+        return
+    columns = list(rows[0])
+    header = ''.join('<th>' + escape(str(column)) + '</th>' for column in columns)
+    body = ''.join('<tr>' + ''.join('<td>' + escape(str(row.get(column, ''))) + '</td>' for column in columns) + '</tr>' for row in rows)
+    st.markdown('<style>.doubles-scroll {overflow-x:auto;} .doubles-large {width:100%;border-collapse:collapse;font-size:18px;} '
+                '.doubles-large th,.doubles-large td {padding:10px 14px;text-align:left;border-bottom:1px solid #8885;white-space:nowrap;}'
+                '.doubles-large th {font-size:18px;font-weight:700;} </style>'
+                '<div class="doubles-scroll"><table class="doubles-large"><thead><tr>' + header +
+                '</tr></thead><tbody>' + body + '</tbody></table></div>', unsafe_allow_html=True)
+
+
+if st.session_state.get('doubles_ranking_version') != 2:
+    st.session_state.pop('doubles_results', None)
+    st.session_state.doubles_ranking_version = 2
+
+
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption('Individual standings for Eerste, Tweede and Derde klasse. Both partners receive the played result.')
-    if st.button('🏆 Load / refresh doubles MVP tables', type='primary', use_container_width=True):
-        st.session_state.doubles_results = {}
-        for league, tournament_id in TOURNAMENTS.items():
+    st.caption('Load one league for a quicker check, or refresh all three.')
+    mvp_selection = None
+    for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
+        with column:
+            if st.button(label, key='mvp_' + label, type='primary', use_container_width=True):
+                mvp_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
+    if mvp_selection:
+        st.session_state.setdefault('doubles_results', {})
+        for league in mvp_selection:
             with st.spinner(f'Reading doubles results and player rosters for {league}…'):
                 try:
-                    st.session_state.doubles_results[league] = load_doubles_league(league, tournament_id)
+                    st.session_state.doubles_results[league] = load_doubles_league(league, TOURNAMENTS[league])
                 except (requests.RequestException, ValueError, KeyError, TypeError):
                     st.session_state.doubles_results[league] = {'error': True}
-    st.caption('Ranked by wins, then win percentage, then rack difference. Exact ties share a rank. Only completed, valid played doubles count. Forfeits are separate and do not affect ranks, played totals or racks.')
+    st.caption('Ranked by win percentage, then matches played, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
+    st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results.')
 
 mvp_results = st.session_state.get('doubles_results', {})
 if mvp_results:
     for tab, league in zip(st.tabs(list(TOURNAMENTS)), TOURNAMENTS):
         with tab:
             standing = mvp_results.get(league, {})
-            if standing.get('error') or not standing:
+            if not standing:
+                st.info('Select this league above to load its doubles table.')
+                continue
+            if standing.get('error'):
                 st.error('Could not load this league. Please refresh the doubles tables.')
                 continue
             if standing['warnings']:
                 st.warning(f"Provisional standings: {len(standing['warnings'])} game or fixture problem(s) need review. Affected results have not been counted.")
             st.caption(f"{standing['counted']} played doubles games counted · {len(standing['forfeits'])} forfeit notice(s) · Updated {standing['checked_at']} (Amsterdam)")
             if standing['table']:
-                st.dataframe(standing['table'], hide_index=True, use_container_width=True)
+                show_doubles_table(standing['table'])
             else:
                 st.info('No completed, valid played doubles results could be included yet.')
-            if standing['forfeit_only']:
-                with st.expander('Players with forfeit results only — not ranked'):
-                    st.dataframe(standing['forfeit_only'], hide_index=True, use_container_width=True)
             with st.expander('Counted doubles results'):
-                st.dataframe(standing['history'], hide_index=True, use_container_width=True)
+                show_doubles_table(standing['history'])
             if standing['forfeits']:
                 with st.expander('Forfeit results — excluded from ranking'):
-                    st.dataframe(standing['forfeits'], hide_index=True, use_container_width=True)
+                    show_doubles_table(standing['forfeits'])
             if standing['warnings']:
                 with st.expander('Results requiring review'):
-                    st.dataframe(standing['warnings'], hide_index=True, use_container_width=True)
+                    show_doubles_table(standing['warnings'])
 
 
 force_refresh = st.checkbox('Fetch fresh results (skip cache)', value=False)
 st.caption('Completed checks are reused for up to 2 minutes. Select fresh results after correcting an entry.')
 
-if st.button('Check all leagues', type='primary'):
-    st.session_state.results = {}
+st.subheader('🔎 Check competition results')
+check_selection = None
+for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
+    with column:
+        if st.button(label, key='check_' + label, type='primary', use_container_width=True):
+            check_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
+if check_selection:
+    st.session_state.setdefault('results', {})
     progress = st.progress(0, text='Connecting to CueScore…')
-    for index, (league, tournament_id) in enumerate(TOURNAMENTS.items()):
-        progress.progress(index / 3, text=f'Checking {league} — reading fixtures and individual matches…')
-        st.session_state.results[league] = check_league(league, tournament_id, force_refresh=force_refresh)
+    for index, league in enumerate(check_selection):
+        progress.progress(index / len(check_selection), text=f'Checking {league} — reading fixtures and individual matches…')
+        st.session_state.results[league] = check_league(league, TOURNAMENTS[league], force_refresh=force_refresh)
     progress.empty()
 
 # Shared ignores are loaded independently of cached CueScore checks.
@@ -316,7 +348,7 @@ for column, league in zip(st.columns(3), TOURNAMENTS):
             st.caption(f"Last checked: {result['checked_at']} (Amsterdam)")
 
 if not results:
-    st.info('Select “Check all leagues” to retrieve the latest results. A full check can take a few minutes.')
+    st.info('Select a league or “All leagues” under Check competition results to retrieve results. A full check can take a few minutes.')
 for league, result in visible.items():
     if result['incomplete']:
         st.warning(f'{league}: Some CueScore data could not be read. Findings are partial; please retry.')
@@ -358,3 +390,5 @@ with st.expander(f'Previously ignored findings ({len(ignored)})'):
                     st.error(str(error))
 
 st.caption('Untouched fixtures are skipped. Missing names on recorded results are flagged. Participation is checked only when all six games have complete player selections. Straightpool is excluded from numeric score checks. Forfeits are notices, not score errors.')
+
+st.info('If you encounter any issues, please contact Matt Sinclair.')

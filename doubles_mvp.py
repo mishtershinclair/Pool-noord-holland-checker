@@ -69,6 +69,11 @@ def aggregate(league, fixtures, details, rosters):
     warnings, forfeits, history = [], [], []
     counted = 0
     seen = set()
+    team_fixtures = defaultdict(set)
+    for fixture in fixtures:
+        if fixture.get('matchstatus') == 'finished':
+            for side in ('A', 'B'):
+                team_fixtures[str((fixture.get('player' + side) or {}).get('teamId'))].add(str(fixture['matchId']))
     for fixture in fixtures:
         fixture_id = str(fixture['matchId'])
         context = {'Date': fixture.get('starttime', ''), 'Match': fixture.get('matchno', '?'),
@@ -86,6 +91,8 @@ def aggregate(league, fixtures, details, rosters):
         for game in games:
             if not game['finished']:
                 continue
+            for side in ('A', 'B'):
+                team_fixtures[str((fixture.get('player' + side) or {}).get('teamId'))].add(fixture_id)
             info = dict(context, **{'Individual match': game['number']})
             try:
                 if not game['id']:
@@ -115,34 +122,36 @@ def aggregate(league, fixtures, details, rosters):
                     raise ValueError('A player appears on both sides; not counted.')
                 # Resolve and validate all four players before changing any totals.
                 winner = (1 if a == 'FF' else 0) if ff else (0 if x > y else 1)
+                if ff:
+                    forfeits.append(dict(info, **{'Pair A': ' & '.join(p['name'] for p in pairs[0]),
+                                                  'Score': a + '–' + b,
+                                                  'Pair B': ' & '.join(p['name'] for p in pairs[1])}))
+                    continue
                 for side_index, pair in enumerate(pairs):
                     team_name = (fixture.get('player' + ('A' if side_index == 0 else 'B')) or {}).get('name', '?')
                     for person in pair:
                         identity = str(person['playerId'])
-                        stat = stats.setdefault(identity, {'Player': person['name'], 'teams': set(),
-                            'Played': 0, 'Won': 0, 'Lost': 0, 'Racks won': 0, 'Racks lost': 0,
-                            'FF wins': 0, 'FF losses': 0})
+                        stat = stats.setdefault(identity, {'Player': person['name'], 'teams': set(), 'team_ids': set(),
+                            'Played': 0, 'Won': 0, 'Lost': 0, 'Racks won': 0, 'Racks lost': 0})
                         stat['teams'].add(team_name)
                         won = side_index == winner
-                        if ff:
-                            stat['FF wins' if won else 'FF losses'] += 1
-                        else:
-                            stat['Played'] += 1
-                            stat['Won' if won else 'Lost'] += 1
-                            stat['Racks won'] += x if side_index == 0 else y
-                            stat['Racks lost'] += y if side_index == 0 else x
+                        stat['team_ids'].add(str((fixture.get('player' + ('A' if side_index == 0 else 'B')) or {}).get('teamId')))
+                        stat['Played'] += 1
+                        stat['Won' if won else 'Lost'] += 1
+                        stat['Racks won'] += x if side_index == 0 else y
+                        stat['Racks lost'] += y if side_index == 0 else x
                 entry = dict(info, **{'Pair A': ' & '.join(p['name'] for p in pairs[0]),
                                      'Score': a + '–' + b, 'Pair B': ' & '.join(p['name'] for p in pairs[1])})
-                if ff:
-                    forfeits.append(entry)
-                else:
-                    counted += 1
-                    history.append(entry)
+                counted += 1
+                history.append(entry)
             except (ValueError, KeyError, TypeError) as error:
                 warnings.append(dict(info, Problem=str(error)))
+    def participation(stat):
+        opportunities = set().union(*(team_fixtures[team] for team in stat['team_ids']))
+        return Fraction(stat['Played'], len(opportunities)) if opportunities else Fraction(0)
+
     def rank_key(stat):
-        return (stat['Won'], Fraction(stat['Won'], stat['Played']) if stat['Played'] else Fraction(0),
-                stat['Racks won'] - stat['Racks lost'])
+        return (Fraction(stat['Won'], stat['Played']), stat['Played'], participation(stat))
     ordered = sorted(stats.values(), key=lambda row: (*(-v for v in rank_key(row)), row['Player'].casefold()))
     table, unranked = [], []
     previous = None
@@ -159,7 +168,7 @@ def aggregate(league, fixtures, details, rosters):
                'Win %': round(100 * stat['Won'] / stat['Played'], 1) if stat['Played'] else 0.0,
                **{k:stat[k] for k in ('Racks won','Racks lost')},
                'Difference': stat['Racks won']-stat['Racks lost'],
-               'FF wins': stat['FF wins'], 'FF losses': stat['FF losses']}
+               'Participation %': round(float(participation(stat)) * 100, 1)}
         (table if stat['Played'] else unranked).append(row)
     return {'table': table, 'forfeit_only': unranked, 'warnings': warnings, 'forfeits': forfeits,
             'history': history, 'counted': counted,
