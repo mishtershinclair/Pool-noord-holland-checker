@@ -84,7 +84,7 @@ def get_scheduled_matches(day_offset=0, now=None):
 
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
 st.title('🎱 Pool Noord-Holland checker ☕')
-st.caption('2026/2027 season · Check competition entries on CueScore · Doubles MVP update 2')
+st.caption('2026/2027 season · Check competition entries on CueScore · Doubles MVP compact tables')
 
 
 def fixture_context(league, fixture):
@@ -147,14 +147,38 @@ def show_doubles_table(rows):
     if not rows:
         st.caption('No results to show.')
         return
-    columns = list(rows[0])
-    header = ''.join('<th>' + escape(str(column)) + '</th>' for column in columns)
-    body = ''.join('<tr>' + ''.join('<td>' + escape(str(row.get(column, ''))) + '</td>' for column in columns) + '</tr>' for row in rows)
-    st.markdown('<style>.doubles-scroll {overflow-x:auto;} .doubles-large {width:100%;border-collapse:collapse;font-size:18px;} '
-                '.doubles-large th,.doubles-large td {padding:10px 14px;text-align:left;border-bottom:1px solid #8885;white-space:nowrap;}'
-                '.doubles-large th {font-size:18px;font-weight:700;} </style>'
-                '<div class="doubles-scroll"><table class="doubles-large"><thead><tr>' + header +
-                '</tr></thead><tbody>' + body + '</tbody></table></div>', unsafe_allow_html=True)
+    standings = 'Player' in rows[0] and 'Win %' in rows[0]
+    columns = (['Rank', 'Player', 'Win %', 'Played', 'Won', 'Lost',
+                'Racks won', 'Racks lost', 'Difference', 'Participation %']
+               if standings else list(rows[0]))
+    labels = {'Rank': '#', 'Racks won': 'Racks<br>won', 'Racks lost': 'Racks<br>lost',
+              'Participation %': 'Participation<br>%'}
+    header = ''.join('<th>' + (labels.get(column, escape(column)) if standings else escape(column)) + '</th>' for column in columns)
+    body_rows = []
+    for row in rows:
+        cells = []
+        for column in columns:
+            value = row.get(column, '')
+            if standings and column == 'Player':
+                content = '<div class="doubles-player">' + escape(str(value)) + '</div>'
+                content += '<div class="doubles-team">' + escape(str(row.get('Team', ''))) + '</div>'
+                cells.append('<td class="doubles-person">' + content + '</td>')
+            else:
+                if standings and column in ('Win %', 'Participation %'):
+                    value = f'{float(value):.1f}%'
+                cells.append('<td>' + escape(str(value)) + '</td>')
+        body_rows.append('<tr>' + ''.join(cells) + '</tr>')
+    table_class = 'doubles-large doubles-standings' if standings else 'doubles-large'
+    st.markdown('<style>.doubles-scroll {overflow-x:auto;} '
+                '.doubles-scroll .doubles-large {width:auto;border-collapse:collapse;font-size:18px;line-height:1.3;}'
+                '.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td {padding:6px 8px;text-align:left;border-bottom:1px solid #8885;white-space:nowrap;}'
+                '.doubles-scroll .doubles-large th {font-size:15px;font-weight:700;vertical-align:bottom;}'
+                '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:right;}'
+                '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
+                '.doubles-player {font-size:18px;} '
+                '.doubles-team {font-size:13px;opacity:.75;white-space:normal;max-width:240px;margin-top:2px;}'
+                '</style><div class="doubles-scroll"><table class="' + table_class + '"><thead><tr>' + header +
+                '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>', unsafe_allow_html=True)
 
 
 if st.session_state.get('doubles_ranking_version') != 2:
