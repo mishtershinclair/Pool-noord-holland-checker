@@ -184,6 +184,7 @@ def show_doubles_table(rows):
 DOUBLES_SEASONS = {
     '2026–27': dict(TOURNAMENTS),
     '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
+    '2024–25': {'Eerste klasse': 46283263, 'Tweede klasse': 46283257, 'Derde klasse': 46283269},
 }
 if st.session_state.get('doubles_ranking_version') != 5:
     st.session_state.pop('doubles_results', None)
@@ -195,7 +196,8 @@ with st.container(border=True):
     st.caption('Choose a season and league, or load all three leagues for that season.')
     mvp_selection = None
     for season, tournaments in DOUBLES_SEASONS.items():
-        st.markdown(f'### {season}')
+        heading = f'{season} · Active season' if season == '2026–27' else f'*{season}*'
+        st.markdown(f'### {heading}')
         for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
             with column:
                 if st.button(label, key='mvp_' + season + '_' + label, type='primary', use_container_width=True):
@@ -218,7 +220,8 @@ with st.container(border=True):
 active_season = st.session_state.get('doubles_active_season', '2026–27')
 mvp_results = st.session_state.get('doubles_results', {}).get(active_season, {})
 if mvp_results:
-    st.subheader(f'Doubles standings · {active_season}')
+    season_label = f'{active_season} · Active season' if active_season == '2026–27' else f'*{active_season}*'
+    st.subheader(f'Doubles standings · {season_label}')
     for tab, league in zip(st.tabs(list(TOURNAMENTS), key='doubles_active_league', on_change='rerun'), TOURNAMENTS):
         with tab:
             standing = mvp_results.get(league, {})
