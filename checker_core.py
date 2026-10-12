@@ -63,19 +63,31 @@ MATCH_TYPE_NAMES = {
 # HELPERS
 # ============================================================
 
+MISSING_PLAYER_LABELS = {'', 'choose player', 'choose a player', 'select player',
+                         'select a player', 'player not selected'}
+
+
 def get_players(player_text):
+    return [part.strip() for part in (player_text or '').split(' & ')
+            if part.strip().casefold() not in MISSING_PLAYER_LABELS]
 
-    if not player_text:
-        return []
 
-    if player_text == "Player not selected":
-        return []
+def missing_player_sides(match):
+    required = 2 if match['type'] == 'Doubles' else 1
+    return [side for side in ('a', 'b')
+            if len(get_players(match['player_' + side])) < required]
 
-    return [
-        player.strip()
-        for player in player_text.split(" & ")
-        if player.strip()
-    ]
+
+def has_recorded_result(match):
+    # CueScore fills untouched future rows with 0–0, so that is not evidence.
+    return match.get('finished', False) or any(
+        str(match[key]).strip() not in ('', '0', '-') for key in ('score_a', 'score_b'))
+
+
+def is_forfeit(match):
+    scores = [str(match[key]).strip().upper() for key in ('score_a', 'score_b')]
+    return scores.count('FF') == 1 and all(
+        score in ('FF', '', '-') or score.isdigit() for score in scores)
 
 
 def format_date(starttime):
@@ -195,6 +207,7 @@ def check_tournament(
             "score_issues": [],
             "player_issues": [],
             "special_scores": [],
+            "missing_player_issues": [],
             "error": True,
         }
 
@@ -218,6 +231,7 @@ def check_tournament(
             "score_issues": [],
             "player_issues": [],
             "special_scores": [],
+            "missing_player_issues": [],
             "error": True,
         }
 
@@ -272,6 +286,8 @@ def check_tournament(
 
 
         fixtures[team_match_id] = {
+
+            "finished": team_match.get("matchstatus") == "finished",
 
             "team_match_id":
                 team_match_id,
@@ -499,7 +515,7 @@ def check_tournament(
 
             player_a = (
                 player_a_element.get_text(
-                    strip=True
+                    " ", strip=True
                 )
                 if player_a_element
                 else "Player not selected"
@@ -508,7 +524,7 @@ def check_tournament(
 
             player_b = (
                 player_b_element.get_text(
-                    strip=True
+                    " ", strip=True
                 )
                 if player_b_element
                 else "Player not selected"
@@ -557,6 +573,8 @@ def check_tournament(
             # ================================================
 
             all_matches.append({
+
+                "finished": "finished" in row.get("class", []),
 
                 "id":
                     individual_match_id,
@@ -634,11 +652,23 @@ def check_tournament(
     score_issues = []
     special_scores = []
     player_issues = []
+    missing_player_issues = []
 
 
     # ========================================================
     # FORMAT CHECK
     # ========================================================
+
+    for match in all_matches:
+        sides = missing_player_sides(match)
+        fixture = fixtures[match['team_match_id']]
+        if sides and (has_recorded_result(match) or fixture.get('finished')):
+            missing_player_issues.append({
+                'fixture': fixture, 'match': match, 'sides': sides,
+                'message': 'Player selection missing for ' + ', '.join(
+                    fixture['team_' + side] for side in sides) +
+                    '. This game has a recorded result or belongs to a completed fixture.',
+            })
 
     for (
         team_match_id,
@@ -649,20 +679,17 @@ def check_tournament(
         configured_matches = [
             match
             for match in matches
-            if (
-                match["player_a"]
-                != "Player not selected"
-
-                and
-
-                match["player_b"]
-                != "Player not selected"
-            )
+            if not missing_player_sides(match)
+            or has_recorded_result(match)
+            or fixtures[team_match_id].get('finished')
         ]
 
 
         # Completely untouched future match.
-        if len(configured_matches) == 0:
+        if not configured_matches and not any(
+            get_players(match['player_a']) or get_players(match['player_b'])
+            for match in matches
+        ):
             continue
 
 
@@ -760,15 +787,7 @@ def check_tournament(
         configured_matches = [
             match
             for match in matches
-            if (
-                match["player_a"]
-                != "Player not selected"
-
-                and
-
-                match["player_b"]
-                != "Player not selected"
-            )
+            if not missing_player_sides(match)
         ]
 
 
@@ -1085,14 +1104,9 @@ def check_tournament(
     for match in all_matches:
 
 
-        if (
-            match["player_a"]
-            == "Player not selected"
-
-            or
-
-            match["player_b"]
-            == "Player not selected"
+        if missing_player_sides(match) and not (
+            has_recorded_result(match)
+            or fixtures[match['team_match_id']].get('finished')
         ):
             continue
 
@@ -1110,8 +1124,15 @@ def check_tournament(
                 "actual_race_to": match["race_to"],
             })
 
-        score_a = match["score_a"]
-        score_b = match["score_b"]
+        score_a = match["score_a"].strip()
+        score_b = match["score_b"].strip()
+
+        if is_forfeit(match):
+            special_scores.append({
+                'match': match, 'fixture': fixtures[match['team_match_id']],
+                'kind': 'forfeit',
+            })
+            continue
 
 
         if (
@@ -1530,6 +1551,7 @@ def check_tournament(
     return {
 
         "race_to_issues": race_to_issues,
+        "missing_player_issues": missing_player_issues,
 
         "league":
             league_name,
