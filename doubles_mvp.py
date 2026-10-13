@@ -1,4 +1,6 @@
 """Individual doubles standings, rebuilt from public CueScore results."""
+NAME_MATCHING_VERSION = '2026-10-13.1'
+
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime

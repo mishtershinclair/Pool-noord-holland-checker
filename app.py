@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import requests
 from html import escape
+import doubles_mvp
 from doubles_mvp import load_league as load_doubles_league
 from review_store import (ReviewStore, StoreError, ISSUE_TITLES, ERROR_KEYS,
                           finding_id, finding_record)
@@ -237,13 +238,18 @@ DOUBLES_SEASONS = {
     '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
     '2024–25': {'Eerste klasse': 46283263, 'Tweede klasse': 46283257, 'Derde klasse': 46283269},
 }
-if st.session_state.get('doubles_ranking_version') != 8:
+matching_version = getattr(doubles_mvp, 'NAME_MATCHING_VERSION', 'older version')
+matching_ready = matching_version == '2026-10-13.1'
+if st.session_state.get('doubles_ranking_version') != (9, matching_version):
     st.session_state.pop('doubles_results', None)
-    st.session_state.doubles_ranking_version = 8
+    st.session_state.doubles_ranking_version = (9, matching_version)
 
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
+    st.caption(f'Name matching: {matching_version}')
+    if not matching_ready:
+        st.error('The doubles checker file is out of date. Replace doubles_mvp.py with the matching download, then reboot the Streamlit app.')
     st.caption('Choose a season and league, or load all three leagues for that season.')
     mvp_selection = None
     for season, tournaments in DOUBLES_SEASONS.items():
@@ -251,7 +257,7 @@ with st.container(border=True):
         st.markdown(f'### {heading}')
         for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
             with column:
-                if st.button(label, key='mvp_' + season + '_' + label, type='primary', use_container_width=True):
+                if st.button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=True):
                     mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
     if mvp_selection:
         season, leagues = mvp_selection
