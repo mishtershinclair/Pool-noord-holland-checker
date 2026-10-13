@@ -1,4 +1,7 @@
 """Individual doubles standings, rebuilt from public CueScore results."""
+PARTNERSHIP_VERSION = '2026-10-13.1'
+PARTNERSHIP_MIN_MATCHES = 5
+
 NAME_MATCHING_VERSION = '2026-10-13.1'
 
 from collections import defaultdict
@@ -110,6 +113,7 @@ def read_doubles(html):
 def aggregate(league, fixtures, details, rosters):
     rosters = prepare_rosters(fixtures, rosters)
     stats = {}
+    partnerships = {}
     warnings, forfeits, history = [], [], []
     counted = 0
     seen = set()
@@ -173,6 +177,16 @@ def aggregate(league, fixtures, details, rosters):
                     continue
                 for side_index, pair in enumerate(pairs):
                     team_name = (fixture.get('player' + ('A' if side_index == 0 else 'B')) or {}).get('name', '?')
+                    identity = tuple(sorted(str(p['playerId']) for p in pair))
+                    partnership = partnerships.setdefault(identity, {
+                        'Partnership': ' + '.join(p['name'] for p in sorted(pair, key=lambda p: str(p['playerId']))),
+                        'teams': set(), 'Played': 0, 'Won': 0, 'Lost': 0,
+                        'Racks won': 0, 'Racks lost': 0})
+                    partnership['teams'].add(team_name)
+                    partnership['Played'] += 1
+                    partnership['Won' if side_index == winner else 'Lost'] += 1
+                    partnership['Racks won'] += x if side_index == 0 else y
+                    partnership['Racks lost'] += y if side_index == 0 else x
                     for person in pair:
                         identity = str(person['playerId'])
                         stat = stats.setdefault(identity, {'Player': person['name'], 'teams': set(), 'team_ids': set(),
@@ -215,7 +229,32 @@ def aggregate(league, fixtures, details, rosters):
                'Difference': stat['Racks won']-stat['Racks lost'],
                'Participation %': round(float(participation(stat)) * 100, 1)}
         (table if stat['Played'] else unranked).append(row)
-    return {'table': table, 'forfeit_only': unranked, 'warnings': warnings, 'forfeits': forfeits,
+    def partnership_key(stat):
+        return (Fraction(stat['Won'], stat['Played']), stat['Won'],
+                stat['Racks won'] - stat['Racks lost'])
+
+    partnership_table = []
+    previous, rank, qualified_count = None, 0, 0
+    for stat in sorted(partnerships.values(), key=lambda row: (
+            *(-v for v in partnership_key(row)), row['Partnership'].casefold())):
+        qualified = stat['Played'] >= PARTNERSHIP_MIN_MATCHES
+        if qualified:
+            qualified_count += 1
+            key = partnership_key(stat)
+            if key != previous:
+                rank = qualified_count
+            previous = key
+        partnership_table.append({
+            'Rank': rank if qualified else '—', 'Partnership': stat['Partnership'],
+            'Team': ', '.join(sorted(stat['teams'])),
+            **{k: stat[k] for k in ('Played', 'Won', 'Lost')},
+            'Win %': round(100 * stat['Won'] / stat['Played'], 1),
+            **{k: stat[k] for k in ('Racks won', 'Racks lost')},
+            'Difference': stat['Racks won'] - stat['Racks lost'],
+            'Status': 'Qualified' if qualified else 'Provisional'})
+    top_partnerships = [row for row in partnership_table if row['Status'] == 'Qualified'][:3]
+    return {'partnerships': partnership_table, 'top_partnerships': top_partnerships,
+            'table': table, 'forfeit_only': unranked, 'warnings': warnings, 'forfeits': forfeits,
             'history': history, 'counted': counted,
             'checked_at': datetime.now(ZoneInfo('Europe/Amsterdam')).strftime('%d %B %Y %H:%M')}
 

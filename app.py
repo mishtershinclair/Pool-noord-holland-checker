@@ -199,10 +199,13 @@ def show_doubles_table(rows):
     if not rows:
         st.caption('No results to show.')
         return
-    standings = 'Player' in rows[0] and 'Win %' in rows[0]
+    partnerships = 'Partnership' in rows[0] and 'Win %' in rows[0]
+    standings = ('Player' in rows[0] and 'Win %' in rows[0]) or partnerships
     columns = (['Rank', 'Player', 'Won', 'Played', 'Win %',
                 'Racks won', 'Racks lost', 'Difference', 'Participation %']
                if standings else list(rows[0]))
+    if partnerships:
+        columns = ['Rank', 'Partnership', 'Won', 'Played', 'Win %', 'Racks won', 'Racks lost', 'Difference', 'Status']
     labels = {'Rank': '#', 'Racks won': 'Frames<br>won', 'Racks lost': 'Frames<br>lost',
               'Difference': 'Frame<br>difference', 'Participation %': 'Participation<br>%'}
     header = ''.join('<th>' + (labels.get(column, escape(column)) if standings else escape(column)) + '</th>' for column in columns)
@@ -211,7 +214,7 @@ def show_doubles_table(rows):
         cells = []
         for column in columns:
             value = row.get(column, '')
-            if standings and column == 'Player':
+            if standings and column in ('Player', 'Partnership'):
                 content = '<div class="doubles-player">' + escape(str(value)) + '</div>'
                 content += '<div class="doubles-team">' + escape(str(row.get('Team', ''))) + '</div>'
                 cells.append('<td class="doubles-person">' + content + '</td>')
@@ -239,10 +242,10 @@ DOUBLES_SEASONS = {
     '2024–25': {'Eerste klasse': 46283263, 'Tweede klasse': 46283257, 'Derde klasse': 46283269},
 }
 matching_version = getattr(doubles_mvp, 'NAME_MATCHING_VERSION', 'older version')
-matching_ready = matching_version == '2026-10-13.1'
-if st.session_state.get('doubles_ranking_version') != (9, matching_version):
+matching_ready = matching_version == '2026-10-13.1' and getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None) == '2026-10-13.1'
+if st.session_state.get('doubles_ranking_version') != (10, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None)):
     st.session_state.pop('doubles_results', None)
-    st.session_state.doubles_ranking_version = (9, matching_version)
+    st.session_state.doubles_ranking_version = (10, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None))
 
 
 with st.container(border=True):
@@ -292,6 +295,16 @@ if mvp_results:
             if standing['warnings']:
                 st.warning(f"Provisional standings: {len(standing['warnings'])} game or fixture problem(s) need review. Affected results have not been counted.")
             st.caption(f"{standing['counted']} played doubles games counted · {len(standing['forfeits'])} forfeit notice(s) · Updated {standing['checked_at']} (Amsterdam)")
+            st.subheader('Top 3 Doubles Partnerships')
+            st.caption('5-match minimum · Ranked by win percentage, then wins, then frame difference. Exact ties share a rank; tied pairs are displayed by name. Top 3 shows up to three qualifying partnerships.')
+            if standing['top_partnerships']:
+                show_doubles_table(standing['top_partnerships'])
+            else:
+                st.info('No partnership has played 5 valid doubles matches together yet.')
+            with st.expander('Full partnership standings', expanded=True):
+                st.caption('All pairs ranked by win percentage, wins and frame difference. Provisional = fewer than 5 valid matches together; excluded from Top 3.')
+                show_doubles_table(standing['partnerships'])
+            st.subheader('Individual doubles standings')
             if standing['table']:
                 show_doubles_table(standing['table'])
             else:
