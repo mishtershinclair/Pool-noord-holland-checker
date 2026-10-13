@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import requests
 from html import escape
-import doubles_mvp
-from doubles_mvp import load_league as load_doubles_league
+import doubles_partnerships as doubles_mvp
+from doubles_partnerships import load_league as load_doubles_league
 from review_store import (ReviewStore, StoreError, ISSUE_TITLES, ERROR_KEYS,
                           finding_id, finding_record)
 
@@ -250,9 +250,10 @@ if st.session_state.get('doubles_ranking_version') != (10, matching_version, get
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption(f'Name matching: {matching_version}')
+    st.caption(f'Build: partnerships-2026-10-13.2 · Name matching: {matching_version}')
     if not matching_ready:
-        st.error('The doubles checker file is out of date. Replace doubles_mvp.py with the matching download, then reboot the Streamlit app.')
+        st.error('Partnership checker mismatch. Upload app.py and doubles_partnerships.py from the same download into the deployed app folder, then reboot.')
+        st.caption(f"Loaded checker: {doubles_mvp.__file__} · Partnership version: {getattr(doubles_mvp, 'PARTNERSHIP_VERSION', 'missing')}")
     st.caption('Choose a season and league, or load all three leagues for that season.')
     mvp_selection = None
     for season, tournaments in DOUBLES_SEASONS.items():
