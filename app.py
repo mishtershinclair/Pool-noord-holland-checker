@@ -1,5 +1,8 @@
 import streamlit as st
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
+from time import monotonic
+from visitor_counter import show_visitor_count
 from service import TOURNAMENTS, check_league
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -91,14 +94,16 @@ def next_loading_theme():
 
 
 @contextmanager
-def loading_indicator(detail, theme=None):
+def loading_indicator(detail, theme=None, keep=False):
     """Show a lightweight animation and always remove it when loading ends."""
     theme = theme or next_loading_theme()
     placeholder = st.empty()
     message = {'beer': 'Pulling a fresh round of results…',
-               'pool': 'Racking up the results…', 'coffee': 'Brewing your results… Lekker bij de coffee'}[theme]
+               'pool': 'Racking up the results…', 'coffee': 'Brewing your results… Lekker bij de coffee',
+               'smoking': 'Still loading—please wait.'}[theme]
     scene = {'beer': '<div class="pour"></div><div class="glass"><div class="beer"></div></div>',
              'pool': '<div class="pocket"></div><div class="ball ball-one">8</div><div class="ball ball-two">1</div><div class="ball ball-three">3</div>',
+             'smoking': '<div class="cigarette"><div class="ember"></div></div><div class="smoke smoke-one"></div><div class="smoke smoke-two"></div><div class="smoke smoke-three"></div>',
              'coffee': '<div class="coffee-drip"></div><div class="cup"><div class="coffee-fill"></div></div><div class="cup-handle"></div><div class="saucer"></div>'}[theme]
     placeholder.markdown('''<style>
     .mvp-loading{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:999990;box-sizing:border-box;width:min(540px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid #9aaebc;border-radius:14px;background:#fffdf7;color:#182235;box-shadow:0 5px 24px #0004;pointer-events:none}
@@ -121,6 +126,11 @@ def loading_indicator(detail, theme=None):
     .mvp-loading .cup-handle{position:absolute;left:104px;top:40px;width:15px;height:24px;border:4px solid #c8b9a5;border-left:0;border-radius:0 14px 14px 0}
     .mvp-loading .saucer{position:absolute;left:31px;top:86px;width:84px;height:5px;border-radius:50%;background:#c8b9a5}
     @keyframes mvp-coffee{0%,10%{height:0}75%,95%{height:36px}100%{height:0}}
+    .mvp-loading .cigarette{position:absolute;left:25px;top:66px;width:96px;height:12px;background:linear-gradient(to right,#c39656 0 25%,#eee 25% 94%,#555 94%);border:1px solid #aaa;border-radius:3px;transform:rotate(-8deg)}
+    .mvp-loading .ember{position:absolute;right:0;width:6px;height:100%;background:#ed713d;box-shadow:0 0 7px #eb6a32}
+    .mvp-loading .smoke{position:absolute;left:112px;top:55px;width:11px;height:11px;border-radius:50%;background:#8b949d80;animation:mvp-smoke 2.4s ease-out infinite}
+    .mvp-loading .smoke-two{animation-delay:.8s}.mvp-loading .smoke-three{animation-delay:1.6s}
+    @keyframes mvp-smoke{0%{transform:translate(0,0) scale(.5);opacity:0}15%{opacity:.8}100%{transform:translate(-22px,-50px) scale(2.5);opacity:0}}
     @media(max-width:600px){.mvp-loading .scene{zoom:.65}.mvp-loading strong{font-size:16px}.mvp-loading small{font-size:12px}}
     @media(prefers-reduced-motion:reduce){.mvp-loading *{animation:none!important}.mvp-loading .beer{height:40px}.mvp-loading .coffee-fill{height:36px}.mvp-loading .coffee-drip{display:none}.mvp-loading .pour{display:none}.mvp-loading .ball{left:10px}.mvp-loading .ball-two{left:42px}.mvp-loading .ball-three{left:74px}}
     </style>''' + '<div class="mvp-loading ' + theme + '" role="status" aria-live="polite">'
@@ -130,12 +140,72 @@ def loading_indicator(detail, theme=None):
     try:
         yield
     finally:
-        placeholder.empty()
+        if not keep:
+            placeholder.empty()
 
+
+
+def action_button(*args, **kwargs):
+    clicked = st.button(*args, **kwargs)
+    if clicked and st.session_state.get('pending_load'):
+        st.session_state.smoking_until = monotonic() + 4
+        return False
+    return clicked
+
+
+def start_load(kind, detail, jobs, season=None):
+    if st.session_state.get('pending_load'):
+        st.session_state.smoking_until = monotonic() + 4
+        return
+    def run():
+        results = {}
+        for label, function, args, kwargs in jobs:
+            try:
+                results[label] = (True, function(*args, **kwargs))
+            except Exception:
+                results[label] = (False, None)
+        return results
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(run)
+    executor.shutdown(wait=False)
+    st.session_state.pending_load = {'future': future, 'kind': kind,
+        'detail': detail, 'season': season, 'theme': next_loading_theme()}
+
+
+@st.fragment(run_every=1)
+def poll_load():
+    pending = st.session_state.get('pending_load')
+    if not pending:
+        return
+    if pending['future'].done():
+        results = pending['future'].result()
+        failures = []
+        for label, (ok, value) in results.items():
+            if pending['kind'] == 'doubles':
+                target = st.session_state.setdefault('doubles_results', {}).setdefault(pending['season'], {})
+                target[label] = value if ok else {'error': True}
+            elif ok and pending['kind'] == 'schedule':
+                st.session_state.match_schedule = value
+            elif ok:
+                st.session_state.setdefault('results', {})[label] = value
+            if not ok:
+                failures.append(label)
+        st.session_state.load_failure = ', '.join(failures)
+        st.session_state.pop('pending_load', None)
+        st.session_state.pop('smoking_until', None)
+        st.rerun()
+    else:
+        theme = 'smoking' if monotonic() < st.session_state.get('smoking_until', 0) else pending['theme']
+        with loading_indicator(pending['detail'], theme, keep=True):
+            # Keep the placeholder until the next fragment refresh.
+            st.empty()
 
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
 st.title('🎱 Pool Noord-Holland checker ☕')
 st.caption('If you encounter any issues, please contact Matt Sinclair.')
+show_visitor_count()
+if st.session_state.get('load_failure'):
+    st.warning('Could not load: ' + st.session_state.load_failure + '. Please retry.')
 st.caption('2026/2027 season · Check competition entries on CueScore · Doubles MVP compact tables')
 
 
@@ -157,15 +227,15 @@ with st.container(border=True):
     st.caption('See who is playing and where, across all three leagues.')
     today_column, tomorrow_column = st.columns(2)
     with today_column:
-        show_today = st.button("📅 See today's matches", type='primary', use_container_width=True)
+        show_today = action_button("📅 See today's matches", type='primary', use_container_width=True)
     with tomorrow_column:
-        show_tomorrow = st.button("📅 See tomorrow's matches", type='primary', use_container_width=True)
+        show_tomorrow = action_button("📅 See tomorrow's matches", type='primary', use_container_width=True)
 
 if show_today or show_tomorrow:
     day_offset = 1 if show_tomorrow else 0
     day_label = 'tomorrow' if day_offset else 'today'
-    with loading_indicator(f"Reading {day_label}'s fixtures from CueScore…"):
-        st.session_state.match_schedule = get_scheduled_matches(day_offset)
+    start_load('schedule', f"Reading {day_label}'s fixtures from CueScore…",
+               [('schedule', get_scheduled_matches, (day_offset,), {})])
 
 schedule = st.session_state.get('match_schedule')
 if schedule and schedule['base_date'] != datetime.now(AMSTERDAM).date().isoformat():
@@ -240,6 +310,8 @@ DOUBLES_SEASONS = {
     '2026–27': dict(TOURNAMENTS),
     '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
     '2024–25': {'Eerste klasse': 46283263, 'Tweede klasse': 46283257, 'Derde klasse': 46283269},
+    '2023–24': {'Eerste klasse': 29400235, 'Tweede klasse': 29400241, 'Derde klasse': 29400247},
+    '2022–23': {'Eerste klasse': 17011009, 'Tweede klasse': 17011003, 'Derde klasse': 17010994},
 }
 matching_version = getattr(doubles_mvp, 'NAME_MATCHING_VERSION', 'older version')
 matching_ready = matching_version == '2026-10-13.1' and getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None) == '2026-10-13.1'
@@ -250,7 +322,7 @@ if st.session_state.get('doubles_ranking_version') != (10, matching_version, get
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption(f'Build: partnerships-2026-10-13.2 · Name matching: {matching_version}')
+    st.caption(f'Build: visitors-seasons-2026-10-13.3 · Name matching: {matching_version}')
     if not matching_ready:
         st.error('Partnership checker mismatch. Upload app.py and doubles_partnerships.py from the same download into the deployed app folder, then reboot.')
         st.caption(f"Loaded checker: {doubles_mvp.__file__} · Partnership version: {getattr(doubles_mvp, 'PARTNERSHIP_VERSION', 'missing')}")
@@ -261,7 +333,7 @@ with st.container(border=True):
         st.markdown(f'### {heading}')
         for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
             with column:
-                if st.button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=True):
+                if action_button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=True):
                     mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
     if mvp_selection:
         season, leagues = mvp_selection
@@ -269,13 +341,9 @@ with st.container(border=True):
         st.session_state.doubles_active_season = season
         if len(leagues) == 1:
             st.session_state.doubles_active_league = leagues[0]
-        season_results = st.session_state.setdefault('doubles_results', {}).setdefault(season, {})
-        for league in leagues:
-            with loading_indicator(season + ' · ' + league, loading_theme):
-                try:
-                    season_results[league] = load_doubles_league(league, DOUBLES_SEASONS[season][league])
-                except (requests.RequestException, ValueError, KeyError, TypeError):
-                    season_results[league] = {'error': True}
+        start_load('doubles', season + ' · ' + ', '.join(leagues),
+                   [(league, load_doubles_league, (league, DOUBLES_SEASONS[season][league]), {})
+                    for league in leagues], season=season)
     st.caption('Ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
     st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results. Confirmed historical names and unique spelling variants are matched automatically; ambiguous names remain excluded.')
 
@@ -327,14 +395,12 @@ st.subheader('🔎 Check competition results')
 check_selection = None
 for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
     with column:
-        if st.button(label, key='check_' + label, type='primary', use_container_width=True):
+        if action_button(label, key='check_' + label, type='primary', use_container_width=True):
             check_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
 if check_selection:
-    st.session_state.setdefault('results', {})
-    loading_theme = next_loading_theme()
-    for index, league in enumerate(check_selection):
-        with loading_indicator(f'Checking {league} · {index + 1} of {len(check_selection)}', loading_theme):
-            st.session_state.results[league] = check_league(league, TOURNAMENTS[league], force_refresh=force_refresh)
+    start_load('checks', 'Checking ' + ', '.join(check_selection),
+               [(league, check_league, (league, TOURNAMENTS[league]), {'force_refresh': force_refresh})
+                for league in check_selection])
 
 # Shared ignores are loaded independently of cached CueScore checks.
 try:
@@ -360,7 +426,7 @@ if 'review_feedback' in st.session_state:
 
 with st.expander('Manage shared ignores'):
     st.caption('Ignored findings are hidden for everyone. Only the administrator can ignore or restore them. Changes appear when this page refreshes or a check runs.')
-    st.button('Refresh shared ignores')
+    action_button('Refresh shared ignores')
     if store.writable:
         st.text_input('Administrator password', type='password', key='review_password')
         if st.session_state.get('review_password') and not store.authorized(st.session_state.review_password):
@@ -471,7 +537,7 @@ for league, result in visible.items():
                 if can_manage:
                     with st.expander('Ignore this finding for everyone'):
                         reason = st.text_input('Reason (optional, visible to everyone)', key='reason_' + identity, max_chars=500)
-                        if st.button('Ignore from now on', key='ignore_' + identity):
+                        if action_button('Ignore from now on', key='ignore_' + identity):
                             try:
                                 with loading_indicator('Saving shared findings…'):
                                     store.ignore(finding_record(league, TOURNAMENTS[league], key, issue, reason), password)
@@ -493,7 +559,7 @@ with st.expander(f'Previously ignored findings ({len(ignored)})'):
                 st.caption('Currently present and hidden from the main results.')
             else:
                 st.caption('Saved finding; no exact match in the currently loaded checks. It may have changed, been resolved, or not been checked.')
-            if can_manage and st.button('Restore for everyone', key='restore_' + identity):
+            if can_manage and action_button('Restore for everyone', key='restore_' + identity):
                 try:
                     with loading_indicator('Saving shared findings…'):
                         store.restore(record, password)
@@ -505,3 +571,6 @@ with st.expander(f'Previously ignored findings ({len(ignored)})'):
 st.caption('Untouched fixtures are skipped. Missing names on recorded results are flagged. Participation is checked only when all six games have complete player selections. Straightpool is excluded from numeric score checks. Forfeits are notices, not score errors.')
 
 
+
+if st.session_state.get("pending_load"):
+    poll_load()
