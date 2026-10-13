@@ -9,11 +9,45 @@ from zoneinfo import ZoneInfo
 import requests
 from bs4 import BeautifulSoup
 
+# User-confirmed historical spelling, attached to a stable CueScore identity.
+# Applied only when that identity is already in the team's roster/history.
+PLAYER_ALIASES = {'1163808': ('M.Yağlı',)}
+
 RACES = {'Eerste klasse': 5, 'Tweede klasse': 5, 'Derde klasse': 4}
 
 
 def normalise(name):
     return re.sub(r'\s+', '', unicodedata.normalize('NFKC', name).casefold())
+
+
+# Team-scoped decisions confirmed by the league administrator.
+CONFIRMED_NAMES = [{'team': '46648447', 'alias': 'M.', 'playerId': '3369296', 'name': 'Mostafa Hosny'}, {'team': '46648447', 'alias': 'M.H', 'playerId': '3369296', 'name': 'Mostafa Hosny'}, {'team': '62160400', 'alias': 'G.Richiuso', 'playerId': '19517899', 'name': 'Greg Richiuso'}, {'team': '29599939', 'alias': 'T.', 'playerId': '1702384', 'name': 'T. Olga'}, {'team': '29599939', 'alias': 'T..', 'playerId': '1702384', 'name': 'T. Olga'}, {'team': '29599939', 'alias': 'T.B', 'playerId': '1702384', 'name': 'T. Olga'}, {'team': '29599939', 'alias': 'T.B.', 'playerId': '1702384', 'name': 'T. Olga'}, {'team': '29599939', 'alias': 'T.O.', 'playerId': '1702384', 'name': 'T. Olga'}, {'team': '29599939', 'alias': 'T.Tolga', 'playerId': '1702384', 'name': 'T. Olga'}, {'team': '1176481', 'alias': 'J.Torres', 'playerId': '1559251', 'name': 'Jun Torres'}, {'team': '64354837', 'alias': 'B.blem', 'playerId': '1163470', 'name': 'Bob B.'}, {'team': '63569641', 'alias': 'V.van den Berg', 'playerId': '62590984', 'name': 'Vanessa'}, {'team': '6096494', 'alias': 'G.Richiuso', 'playerId': '19517899', 'name': 'Greg Richiuso'}, {'team': '46515838', 'alias': 'T.WH', 'playerId': '34200361', 'name': 'Tofail Wagid Hosain'}, {'team': '6229472', 'alias': 'J.DOLLFUS', 'playerId': '17878582', 'name': 'J-P D'}, {'team': '17953762', 'alias': 'A.".L', 'playerId': '37771660', 'name': 'A. "Sakalam"'}, {'team': '17953762', 'alias': 'A.“.Lugtu', 'playerId': '37771660', 'name': 'A. "Sakalam"'}, {'team': '9200494', 'alias': 'M.A', 'playerId': '52502593', 'name': 'Moudar Ali'}, {'team': '1176664', 'alias': 'H.Vink', 'playerId': '1162875', 'name': 'Harmen V'}, {'team': '8092256', 'alias': 'A.Wever', 'playerId': '9703372', 'name': 'Anthony Wever'}, {'team': '8092256', 'alias': 'M.A', 'playerId': '52502593', 'name': 'Moudar Ali'}, {'team': '64056430', 'alias': 'C.Sarbanescu', 'playerId': '6783906', 'name': 'Cosmin Sarbanescu'}, {'team': '3596529', 'alias': 'K.Steffen', 'playerId': '5216947', 'name': 'Steffen Klein'}, {'team': '2926212', 'alias': 'M.Yağlı', 'playerId': '1163808', 'name': 'Muhsin Yagli'}, {'team': '1176481', 'alias': 'R.C.Torres', 'playerId': '40296037', 'name': 'Renato Torres'}, {'team': '1176481', 'alias': 'R.Castañeda', 'playerId': '40296037', 'name': 'Renato Torres'}, {'team': '1176481', 'alias': 'R.Torres Jr.', 'playerId': '40296037', 'name': 'Renato Torres'}, {'team': '63272905', 'alias': 'A.A.Ferreira', 'playerId': '5450329', 'name': 'Antonio.♎️ Alexander ferreira.'}, {'team': '63272905', 'alias': 'A.Ferreira', 'playerId': '5450329', 'name': 'Antonio.♎️ Alexander ferreira.'}, {'team': '63272905', 'alias': 'F.k.Antonio  A🐑🦁', 'playerId': '5450329', 'name': 'Antonio.♎️ Alexander ferreira.'}, {'team': '63272905', 'alias': 'F.k.Antonio alexander', 'playerId': '5450329', 'name': 'Antonio.♎️ Alexander ferreira.'}, {'team': '64354837', 'alias': 'H.Wagid Hosain', 'playerId': '34200361', 'name': 'Tofail Wagid Hosain'}, {'team': '46515838', 'alias': 'H.Wagid Hosain', 'playerId': '34200361', 'name': 'Tofail Wagid Hosain'}, {'team': '46620241', 'alias': 'M.Konijnenberg', 'playerId': '30252431', 'name': 'Michelle Konynenberg-Harrison'}]
+UNRESOLVED_NAMES = [['2806543', 'J.TSANG'], ['27817732', 'M..'], ['27817732', 'M.Valk'], ['1176481', 'K.Oei'], ['2852247', 'M.Donini'], ['1176605', 'B.Rossmark']]
+
+
+def spelling_key(value):
+    value = unicodedata.normalize('NFKD', value.casefold().replace('ı', 'i'))
+    return ''.join(c for c in value if c.isalnum())
+
+
+def prepare_rosters(fixtures, rosters):
+    # Include explicitly confirmed former/guest players even if no longer members.
+    prepared = {team: [dict(p) for p in roster] for team, roster in rosters.items() if isinstance(roster, list)}
+    teams = {str((f.get('player'+side) or {}).get('teamId')) for f in fixtures for side in ('A','B')}
+    for team in teams:
+        roster = prepared.setdefault(team, [])
+        for person in roster:
+            person['_confirmed_aliases'] = []
+            person['_blocked_aliases'] = [alias for tid, alias in UNRESOLVED_NAMES if tid == team]
+        for rule in CONFIRMED_NAMES:
+            if rule['team'] != team: continue
+            person = next((p for p in roster if str(p.get('playerId')) == rule['playerId']), None)
+            if person is None:
+                person = {'playerId': rule['playerId'], 'name': rule['name'], 'firstname': '', 'lastname': '',
+                          '_confirmed_aliases': [], '_blocked_aliases': [alias for tid,alias in UNRESOLVED_NAMES if tid==team]}
+                roster.append(person)
+            person['_confirmed_aliases'].append(rule['alias'])
+    return prepared
 
 
 def resolve_pair(label, roster):
@@ -23,17 +57,24 @@ def resolve_pair(label, roster):
         raise ValueError('Two doubles partners could not be identified.')
     resolved = []
     for part in parts:
+        if any(normalise(part) == normalise(a) for p in roster for a in p.get('_blocked_aliases', [])):
+            raise ValueError(f'Player “{part}” remains unresolved by administrator decision.')
+        explicit = {str(p['playerId']):p for p in roster if any(normalise(part)==normalise(a) for a in p.get('_confirmed_aliases', []))}
+        if len(explicit) == 1:
+            resolved.append(next(iter(explicit.values())))
+            continue
         candidates = {}
         for person in roster:
             if not person.get('playerId') or not person.get('name'):
                 continue
             aliases = {normalise(person['name'])}
+            aliases.update(normalise(alias) for alias in PLAYER_ALIASES.get(str(person['playerId']), ()))
             first, last = person.get('firstname', '').strip(), person.get('lastname', '').strip()
             if first:
                 aliases.add(normalise(first[0] + '.' + last))
                 initials = '.'.join(word[0] for word in first.split()) + '.'
                 aliases.add(normalise(initials + last))
-            if normalise(part) in aliases:
+            if normalise(part) in aliases or (len(spelling_key(part)) >= 4 and spelling_key(part) in {spelling_key(a) for a in aliases}):
                 candidates[str(person['playerId'])] = person
         if len(candidates) != 1:
             raise ValueError(f'Player “{part}” is missing from the roster or cannot be identified uniquely.')
@@ -65,6 +106,7 @@ def read_doubles(html):
 
 
 def aggregate(league, fixtures, details, rosters):
+    rosters = prepare_rosters(fixtures, rosters)
     stats = {}
     warnings, forfeits, history = [], [], []
     counted = 0

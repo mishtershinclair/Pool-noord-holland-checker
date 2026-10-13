@@ -237,9 +237,9 @@ DOUBLES_SEASONS = {
     '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
     '2024–25': {'Eerste klasse': 46283263, 'Tweede klasse': 46283257, 'Derde klasse': 46283269},
 }
-if st.session_state.get('doubles_ranking_version') != 6:
+if st.session_state.get('doubles_ranking_version') != 8:
     st.session_state.pop('doubles_results', None)
-    st.session_state.doubles_ranking_version = 6
+    st.session_state.doubles_ranking_version = 8
 
 
 with st.container(border=True):
@@ -267,7 +267,7 @@ with st.container(border=True):
                 except (requests.RequestException, ValueError, KeyError, TypeError):
                     season_results[league] = {'error': True}
     st.caption('Ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
-    st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results.')
+    st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results. Confirmed historical names and unique spelling variants are matched automatically; ambiguous names remain excluded.')
 
 active_season = st.session_state.get('doubles_active_season', '2026–27')
 mvp_results = st.session_state.get('doubles_results', {}).get(active_season, {})
