@@ -214,36 +214,24 @@ def poll_load():
 
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
 st.markdown("""<style>
-[class*="st-key-season_controls_"] {gap:8px!important;}
-[class*="st-key-season_controls_"] h3 {padding-top:6px;padding-bottom:2px;}
-/* Compact controls with readable labels and a comfortable touch target. */
-[data-testid="stButton"] button {
-    min-height:44px;
-    padding:6px 14px;
-    border-radius:10px;
-    transition:background-color .15s ease, border-color .15s ease;
-}
-[data-testid="stButton"] button p {
-    font-size:17px;
-    font-weight:650;
-    line-height:1.2;
-    margin:0;
-}
-[data-testid="stButton"] button:focus-visible {
-    outline:3px solid var(--st-primary-color, #ff4b4b);
-    outline-offset:3px;
-}
-[data-testid="stVerticalBlockBorderWrapper"] {
-    border-radius:14px;
-}
-@media(max-width:600px) {
-    [data-testid="stMainBlockContainer"] {padding-left:16px;padding-right:16px;}
-    [data-testid="stHorizontalBlock"] {row-gap:8px;}
-    [data-testid="stButton"] button {padding:5px 12px;min-height:44px;}
-    [data-testid="stButton"] button p {font-size:17px;}
-}
-@media(prefers-reduced-motion:reduce) {
-    [data-testid="stButton"] button {transition:none;}
+[data-testid="stButton"] button {min-height:46px;padding:8px 12px;border-radius:9px;box-sizing:border-box;white-space:normal;}
+[data-testid="stButton"] button p {font-size:16px;font-weight:600;line-height:1.3;white-space:normal;overflow-wrap:normal;margin:0;}
+[class*="st-key-season_controls_"] {gap:10px!important;}
+[class*="st-key-season_controls_"] h3 {font-size:19px;padding:8px 0 2px;}
+[class*="st-key-season_controls_"] [data-testid="stHorizontalBlock"],
+.st-key-check_controls [data-testid="stHorizontalBlock"] {display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px!important;}
+.st-key-schedule_controls [data-testid="stHorizontalBlock"] {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px!important;}
+[class*="st-key-season_controls_"] [data-testid="stColumn"],
+.st-key-check_controls [data-testid="stColumn"],.st-key-schedule_controls [data-testid="stColumn"] {width:100%!important;min-width:0!important;max-width:100%!important;flex:none!important;}
+[class*="st-key-season_controls_"] button,.st-key-check_controls button,.st-key-schedule_controls button {width:100%;max-width:100%;}
+@media(max-width:720px){
+h1 {font-size:30px!important;line-height:1.2!important;letter-spacing:-.5px;}
+[class*="st-key-season_controls_"] button,.st-key-check_controls button {height:56px;min-height:56px;}
+[class*="st-key-season_controls_"] button p,.st-key-check_controls button p {font-size:15px;}
+
+[class*="st-key-season_controls_"] [data-testid="stHorizontalBlock"],.st-key-check_controls [data-testid="stHorizontalBlock"] {grid-template-columns:repeat(2,minmax(0,1fr));}
+.st-key-schedule_controls [data-testid="stHorizontalBlock"] {grid-template-columns:minmax(0,1fr);}
+[data-testid="stMainBlockContainer"] {padding-left:16px;padding-right:16px;}
 }
 </style>""", unsafe_allow_html=True)
 
@@ -271,11 +259,12 @@ def game_details(match):
 with st.container(border=True):
     st.subheader('📅 Match schedule')
     st.caption('See who is playing and where, across all three leagues.')
-    today_column, tomorrow_column = st.columns(2)
-    with today_column:
-        show_today = action_button("📅 See today's matches", type='primary', use_container_width=False)
-    with tomorrow_column:
-        show_tomorrow = action_button("📅 See tomorrow's matches", type='primary', use_container_width=False)
+    with st.container(key='schedule_controls'):
+        today_column, tomorrow_column = st.columns(2)
+        with today_column:
+            show_today = action_button("📅 See today's matches", type='primary', use_container_width=True)
+        with tomorrow_column:
+            show_tomorrow = action_button("📅 See tomorrow's matches", type='primary', use_container_width=True)
 
 if show_today or show_tomorrow:
     day_offset = 1 if show_tomorrow else 0
@@ -393,7 +382,7 @@ if st.session_state.get('doubles_ranking_version') != (10, matching_version, get
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption(f'Build: ui-2026-10-15.1 · Name matching: {matching_version}')
+    st.caption(f'Build: ui-2026-10-15.2 · Name matching: {matching_version}')
     if not matching_ready:
         st.error('Partnership checker mismatch. Upload app.py and doubles_partnerships.py from the same download into the deployed app folder, then reboot.')
         st.caption(f"Loaded checker: {doubles_mvp.__file__} · Partnership version: {getattr(doubles_mvp, 'PARTNERSHIP_VERSION', 'missing')}")
@@ -405,7 +394,7 @@ with st.container(border=True):
             st.markdown(f'### {heading}')
             for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
                 with column:
-                    if action_button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=False):
+                    if action_button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=True):
                         mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
     if mvp_selection:
         season, leagues = mvp_selection
@@ -465,10 +454,11 @@ st.caption('Completed checks are reused for up to 2 minutes. Select fresh result
 
 st.subheader('🔎 Check competition results')
 check_selection = None
-for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
-    with column:
-        if action_button(label, key='check_' + label, type='primary', use_container_width=False):
-            check_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
+with st.container(key='check_controls'):
+    for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
+        with column:
+            if action_button(label, key='check_' + label, type='primary', use_container_width=True):
+                check_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
 if check_selection:
     start_load('checks', 'Checking ' + ', '.join(check_selection),
                [(league, check_league, (league, TOURNAMENTS[league]), {'force_refresh': force_refresh})
