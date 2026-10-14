@@ -2,7 +2,7 @@ import streamlit as st
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from time import monotonic
-from visitor_counter import show_visitor_count, scroll_to_results
+import streamlit.components.v2 as components
 from service import TOURNAMENTS, check_league
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -13,6 +13,14 @@ from doubles_partnerships import load_league as load_doubles_league
 from review_store import (ReviewStore, StoreError, ISSUE_TITLES, ERROR_KEYS,
                           finding_id, finding_record)
 
+
+
+
+SCROLL_JS = "\nexport default function(component) {\n    const {data} = component;\n    if (!data || !data.target || !data.nonce) return;\n    let observer, timer;\n    function reveal() {\n        const target = document.getElementById(data.target);\n        if (!target || target.getClientRects().length === 0) return false;\n        if (target.dataset.lastScroll !== data.nonce) {\n            target.dataset.lastScroll = data.nonce;\n            target.focus({preventScroll:true});\n            target.scrollIntoView({block:'start', behavior:\n                matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});\n        }\n        if (observer) observer.disconnect();\n        if (timer) clearTimeout(timer);\n        return true;\n    }\n    if (!reveal()) {\n        observer = new MutationObserver(reveal);\n        observer.observe(document.body, {childList:true, subtree:true, attributes:true});\n        timer = setTimeout(() => observer.disconnect(), 8000);\n    }\n    return () => { if (observer) observer.disconnect(); if (timer) clearTimeout(timer); };\n}\n"
+
+def scroll_to_results(request):
+    scroll_component = components.component('pool_results_scroll', js=SCROLL_JS)
+    scroll_component(key='results_scroll', data=request)
 
 AMSTERDAM = ZoneInfo('Europe/Amsterdam')
 
@@ -207,7 +215,6 @@ def poll_load():
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
 st.title('🎱 Pool Noord-Holland checker ☕')
 st.caption('If you encounter any issues, please contact Matt Sinclair.')
-show_visitor_count()
 st.markdown('<div id="load-feedback" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
 if st.session_state.get('load_failure'):
     st.warning('Could not load: ' + st.session_state.load_failure + '. Please retry.')
@@ -339,7 +346,7 @@ if st.session_state.get('doubles_ranking_version') != (10, matching_version, get
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption(f'Build: mobile-2026-10-14.1 · Name matching: {matching_version}')
+    st.caption(f'Build: mobile-2026-10-14.3 · Name matching: {matching_version}')
     if not matching_ready:
         st.error('Partnership checker mismatch. Upload app.py and doubles_partnerships.py from the same download into the deployed app folder, then reboot.')
         st.caption(f"Loaded checker: {doubles_mvp.__file__} · Partnership version: {getattr(doubles_mvp, 'PARTNERSHIP_VERSION', 'missing')}")
