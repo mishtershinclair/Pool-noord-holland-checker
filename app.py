@@ -313,6 +313,8 @@ def show_doubles_table(rows):
     table_class = 'doubles-large doubles-standings' if standings else 'doubles-large'
     if partnerships:
         table_class += ' partnership-standings'
+    elif standings:
+        table_class += ' individual-standings'
     st.markdown('<style>.doubles-scroll {overflow-x:auto;} '
                 '.doubles-scroll .doubles-large {width:auto;border-collapse:collapse;font-size:18px;line-height:1.3;}'
                 '.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td {padding:6px 8px;text-align:left;border-bottom:1px solid #8885;white-space:nowrap;}'
@@ -320,12 +322,19 @@ def show_doubles_table(rows):
                 '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:center;}'
                 '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
                 '.doubles-player {font-size:18px;} '
+                '.individual-standings td.doubles-person{width:170px;max-width:170px;white-space:normal!important;}'
+                '.individual-standings .doubles-player,.individual-standings .doubles-team{max-width:170px;white-space:normal;overflow-wrap:anywhere;}'
                 '.doubles-team {font-size:13px;opacity:.75;white-space:normal;max-width:240px;margin-top:2px;}'
                 '.partnership-player{white-space:normal;overflow-wrap:anywhere;font-size:18px;max-width:220px;}'
                 '@media(max-width:600px){.doubles-scroll .partnership-standings th,.doubles-scroll .partnership-standings td{padding:6px 4px;font-size:14px;}'
                 '.doubles-scroll .partnership-standings td.doubles-person{min-width:96px;width:112px;max-width:128px;white-space:normal;}'
                 '.partnership-player{font-size:14px;max-width:128px;}.partnership-player+.partnership-player{margin-top:3px;}'
                 '.partnership-standings .doubles-team{font-size:11px;max-width:128px;}.doubles-scroll .partnership-standings th{font-size:13px;}}'
+                '@media(max-width:600px){.doubles-scroll .individual-standings th,.doubles-scroll .individual-standings td{padding:6px 4px;font-size:14px;}'
+                '.doubles-scroll .individual-standings th{font-size:13px;}'
+                '.doubles-scroll .individual-standings td.doubles-person{width:112px;min-width:96px;max-width:112px;}'
+                '.individual-standings .doubles-player{font-size:14px;max-width:112px;line-height:1.3;}'
+                '.individual-standings .doubles-team{font-size:11px;max-width:112px;}}'
                 '</style><div class="doubles-scroll"><table class="' + table_class + '"><thead><tr>' + header +
                 '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>', unsafe_allow_html=True)
 
@@ -346,7 +355,7 @@ if st.session_state.get('doubles_ranking_version') != (10, matching_version, get
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption(f'Build: mobile-2026-10-14.3 · Name matching: {matching_version}')
+    st.caption(f'Build: mobile-2026-10-14.4 · Name matching: {matching_version}')
     if not matching_ready:
         st.error('Partnership checker mismatch. Upload app.py and doubles_partnerships.py from the same download into the deployed app folder, then reboot.')
         st.caption(f"Loaded checker: {doubles_mvp.__file__} · Partnership version: {getattr(doubles_mvp, 'PARTNERSHIP_VERSION', 'missing')}")
