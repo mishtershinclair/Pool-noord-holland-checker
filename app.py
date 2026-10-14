@@ -213,6 +213,40 @@ def poll_load():
             st.empty()
 
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
+st.markdown("""<style>
+[class*="st-key-season_controls_"] {gap:8px!important;}
+[class*="st-key-season_controls_"] h3 {padding-top:6px;padding-bottom:2px;}
+/* Compact controls with readable labels and a comfortable touch target. */
+[data-testid="stButton"] button {
+    min-height:44px;
+    padding:6px 14px;
+    border-radius:10px;
+    transition:background-color .15s ease, border-color .15s ease;
+}
+[data-testid="stButton"] button p {
+    font-size:17px;
+    font-weight:650;
+    line-height:1.2;
+    margin:0;
+}
+[data-testid="stButton"] button:focus-visible {
+    outline:3px solid var(--st-primary-color, #ff4b4b);
+    outline-offset:3px;
+}
+[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius:14px;
+}
+@media(max-width:600px) {
+    [data-testid="stMainBlockContainer"] {padding-left:16px;padding-right:16px;}
+    [data-testid="stHorizontalBlock"] {row-gap:8px;}
+    [data-testid="stButton"] button {padding:5px 12px;min-height:44px;}
+    [data-testid="stButton"] button p {font-size:17px;}
+}
+@media(prefers-reduced-motion:reduce) {
+    [data-testid="stButton"] button {transition:none;}
+}
+</style>""", unsafe_allow_html=True)
+
 st.title('🎱 Pool Noord-Holland checker ☕')
 st.caption('If you encounter any issues, please contact Matt Sinclair.')
 st.markdown('<div id="load-feedback" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
@@ -239,9 +273,9 @@ with st.container(border=True):
     st.caption('See who is playing and where, across all three leagues.')
     today_column, tomorrow_column = st.columns(2)
     with today_column:
-        show_today = action_button("📅 See today's matches", type='primary', use_container_width=True)
+        show_today = action_button("📅 See today's matches", type='primary', use_container_width=False)
     with tomorrow_column:
-        show_tomorrow = action_button("📅 See tomorrow's matches", type='primary', use_container_width=True)
+        show_tomorrow = action_button("📅 See tomorrow's matches", type='primary', use_container_width=False)
 
 if show_today or show_tomorrow:
     day_offset = 1 if show_tomorrow else 0
@@ -359,7 +393,7 @@ if st.session_state.get('doubles_ranking_version') != (10, matching_version, get
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption(f'Build: mobile-2026-10-14.5 · Name matching: {matching_version}')
+    st.caption(f'Build: ui-2026-10-15.1 · Name matching: {matching_version}')
     if not matching_ready:
         st.error('Partnership checker mismatch. Upload app.py and doubles_partnerships.py from the same download into the deployed app folder, then reboot.')
         st.caption(f"Loaded checker: {doubles_mvp.__file__} · Partnership version: {getattr(doubles_mvp, 'PARTNERSHIP_VERSION', 'missing')}")
@@ -367,11 +401,12 @@ with st.container(border=True):
     mvp_selection = None
     for season, tournaments in DOUBLES_SEASONS.items():
         heading = f'{season} · Active season' if season == '2026–27' else f'*{season}*'
-        st.markdown(f'### {heading}')
-        for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
-            with column:
-                if action_button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=True):
-                    mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
+        with st.container(key='season_controls_' + season):
+            st.markdown(f'### {heading}')
+            for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
+                with column:
+                    if action_button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=False):
+                        mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
     if mvp_selection:
         season, leagues = mvp_selection
         st.session_state.doubles_active_season = season
@@ -432,7 +467,7 @@ st.subheader('🔎 Check competition results')
 check_selection = None
 for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
     with column:
-        if action_button(label, key='check_' + label, type='primary', use_container_width=True):
+        if action_button(label, key='check_' + label, type='primary', use_container_width=False):
             check_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
 if check_selection:
     start_load('checks', 'Checking ' + ', '.join(check_selection),
