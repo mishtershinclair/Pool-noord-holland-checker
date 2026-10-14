@@ -300,7 +300,8 @@ def show_doubles_table(rows):
             if standings and column in ('Player', 'Partnership'):
                 if column == 'Partnership':
                     partners = row.get('Partners') or str(value).split(' + ', 1)
-                    content = ''.join('<div class="partnership-player">' + escape(str(name)) + '</div>' for name in partners)
+                    content = '<span class="partnership-plus" aria-hidden="true">+</span>'.join(
+                        '<div class="partnership-player">' + escape(str(name)) + '</div>' for name in partners)
                 else:
                     content = '<div class="doubles-player">' + escape(str(value)) + '</div>'
                 content += '<div class="doubles-team">' + escape(str(row.get('Team', ''))) + '</div>'
@@ -325,10 +326,13 @@ def show_doubles_table(rows):
                 '.individual-standings td.doubles-person{width:170px;max-width:170px;white-space:normal!important;}'
                 '.individual-standings .doubles-player,.individual-standings .doubles-team{max-width:170px;white-space:normal;overflow-wrap:anywhere;}'
                 '.doubles-team {font-size:13px;opacity:.75;white-space:normal;max-width:240px;margin-top:2px;}'
-                '.partnership-player{white-space:normal;overflow-wrap:anywhere;font-size:18px;max-width:220px;}'
+                '.partnership-player{white-space:normal;overflow-wrap:anywhere;font-size:18px;max-width:220px;box-sizing:border-box;padding:3px 5px;border:1px solid #8884;border-radius:5px;background:#8881;font-weight:600;}'
+                '.partnership-plus{display:block;text-align:center;font-size:12px;line-height:1;margin:3px 0;opacity:.65;}'
+                '.partnership-standings tbody tr:nth-child(even){background:#8881;}'
+                '.partnership-standings .doubles-person{padding-top:9px!important;padding-bottom:9px!important;}'
                 '@media(max-width:600px){.doubles-scroll .partnership-standings th,.doubles-scroll .partnership-standings td{padding:6px 4px;font-size:14px;}'
                 '.doubles-scroll .partnership-standings td.doubles-person{min-width:96px;width:112px;max-width:128px;white-space:normal;}'
-                '.partnership-player{font-size:14px;max-width:128px;}.partnership-player+.partnership-player{margin-top:3px;}'
+                '.partnership-player{font-size:14px;max-width:128px;}'
                 '.partnership-standings .doubles-team{font-size:11px;max-width:128px;}.doubles-scroll .partnership-standings th{font-size:13px;}}'
                 '@media(max-width:600px){.doubles-scroll .individual-standings th,.doubles-scroll .individual-standings td{padding:6px 4px;font-size:14px;}'
                 '.doubles-scroll .individual-standings th{font-size:13px;}'
@@ -355,7 +359,7 @@ if st.session_state.get('doubles_ranking_version') != (10, matching_version, get
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption(f'Build: mobile-2026-10-14.4 · Name matching: {matching_version}')
+    st.caption(f'Build: mobile-2026-10-14.5 · Name matching: {matching_version}')
     if not matching_ready:
         st.error('Partnership checker mismatch. Upload app.py and doubles_partnerships.py from the same download into the deployed app folder, then reboot.')
         st.caption(f"Loaded checker: {doubles_mvp.__file__} · Partnership version: {getattr(doubles_mvp, 'PARTNERSHIP_VERSION', 'missing')}")
