@@ -75,3 +75,36 @@ def show_visitor_count():
         except VisitorError:
             return
     st.caption(f"Unique visitors: {st.session_state.visitor_count:,} · Counted by browser since tracking began")
+
+
+SCROLL_JS = """
+export default function(component) {
+    const {data} = component;
+    if (!data || !data.target || !data.nonce) return;
+    let observer, timer;
+    function reveal() {
+        const target = document.getElementById(data.target);
+        if (!target || target.getClientRects().length === 0) return false;
+        if (target.dataset.lastScroll !== data.nonce) {
+            target.dataset.lastScroll = data.nonce;
+            target.focus({preventScroll:true});
+            target.scrollIntoView({block:'start', behavior:
+                matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+        }
+        if (observer) observer.disconnect();
+        if (timer) clearTimeout(timer);
+        return true;
+    }
+    if (!reveal()) {
+        observer = new MutationObserver(reveal);
+        observer.observe(document.body, {childList:true, subtree:true, attributes:true});
+        timer = setTimeout(() => observer.disconnect(), 8000);
+    }
+    return () => { if (observer) observer.disconnect(); if (timer) clearTimeout(timer); };
+}
+"""
+
+
+def scroll_to_results(request):
+    scroll_component = components.component('pool_results_scroll', js=SCROLL_JS)
+    scroll_component(key='results_scroll', data=request)

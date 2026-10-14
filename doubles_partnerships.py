@@ -180,6 +180,7 @@ def aggregate(league, fixtures, details, rosters):
                     identity = tuple(sorted(str(p['playerId']) for p in pair))
                     partnership = partnerships.setdefault(identity, {
                         'Partnership': ' + '.join(p['name'] for p in sorted(pair, key=lambda p: str(p['playerId']))),
+                        'Partners': [p['name'] for p in sorted(pair, key=lambda p: str(p['playerId']))],
                         'teams': set(), 'Played': 0, 'Won': 0, 'Lost': 0,
                         'Racks won': 0, 'Racks lost': 0})
                     partnership['teams'].add(team_name)
@@ -246,6 +247,7 @@ def aggregate(league, fixtures, details, rosters):
             previous = key
         partnership_table.append({
             'Rank': rank if qualified else '—', 'Partnership': stat['Partnership'],
+            'Partners': stat['Partners'],
             'Team': ', '.join(sorted(stat['teams'])),
             **{k: stat[k] for k in ('Played', 'Won', 'Lost')},
             'Win %': round(100 * stat['Won'] / stat['Played'], 1),

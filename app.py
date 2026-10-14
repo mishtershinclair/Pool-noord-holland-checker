@@ -2,7 +2,7 @@ import streamlit as st
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from time import monotonic
-from visitor_counter import show_visitor_count
+from visitor_counter import show_visitor_count, scroll_to_results
 from service import TOURNAMENTS, check_league
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -88,15 +88,15 @@ def get_scheduled_matches(day_offset=0, now=None):
 
 
 def next_loading_theme():
-    count = st.session_state.get('loading_animation_count', 0)
-    st.session_state.loading_animation_count = count + 1
-    return ('beer', 'pool', 'coffee')[count % 3]
+    count = st.session_state.get('loading_cycle_index', 0)
+    st.session_state.loading_cycle_index = count + 1
+    return ('coffee', 'beer', 'pool')[count % 3]
 
 
 @contextmanager
 def loading_indicator(detail, theme=None, keep=False):
     """Show a lightweight animation and always remove it when loading ends."""
-    theme = theme or next_loading_theme()
+    theme = theme or 'coffee'
     placeholder = st.empty()
     message = {'beer': 'Pulling a fresh round of results…',
                'pool': 'Racking up the results…', 'coffee': 'Brewing your results… Lekker bij de coffee',
@@ -191,6 +191,10 @@ def poll_load():
             if not ok:
                 failures.append(label)
         st.session_state.load_failure = ', '.join(failures)
+        target = {'doubles': 'doubles-results', 'schedule': 'schedule-results', 'checks': 'competition-results'}[pending['kind']]
+        if failures and pending['kind'] == 'schedule':
+            target = 'load-feedback'
+        st.session_state.scroll_request = {'target': target, 'nonce': str(monotonic())}
         st.session_state.pop('pending_load', None)
         st.session_state.pop('smoking_until', None)
         st.rerun()
@@ -204,6 +208,7 @@ st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱'
 st.title('🎱 Pool Noord-Holland checker ☕')
 st.caption('If you encounter any issues, please contact Matt Sinclair.')
 show_visitor_count()
+st.markdown('<div id="load-feedback" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
 if st.session_state.get('load_failure'):
     st.warning('Could not load: ' + st.session_state.load_failure + '. Please retry.')
 st.caption('2026/2027 season · Check competition entries on CueScore · Doubles MVP compact tables')
@@ -242,6 +247,7 @@ if schedule and schedule['base_date'] != datetime.now(AMSTERDAM).date().isoforma
     st.info('The date has changed. Select a schedule button to refresh the fixtures.')
     schedule = None
 if schedule:
+    st.markdown('<div id="schedule-results" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     day_label = 'tomorrow' if schedule['day_offset'] else 'today'
     st.subheader(f"{day_label.capitalize()}'s matches · {schedule['date_label']}")
     st.caption('Times shown in Amsterdam local time. Select either schedule button to refresh.')
@@ -285,7 +291,11 @@ def show_doubles_table(rows):
         for column in columns:
             value = row.get(column, '')
             if standings and column in ('Player', 'Partnership'):
-                content = '<div class="doubles-player">' + escape(str(value)) + '</div>'
+                if column == 'Partnership':
+                    partners = row.get('Partners') or str(value).split(' + ', 1)
+                    content = ''.join('<div class="partnership-player">' + escape(str(name)) + '</div>' for name in partners)
+                else:
+                    content = '<div class="doubles-player">' + escape(str(value)) + '</div>'
                 content += '<div class="doubles-team">' + escape(str(row.get('Team', ''))) + '</div>'
                 cells.append('<td class="doubles-person">' + content + '</td>')
             else:
@@ -294,6 +304,8 @@ def show_doubles_table(rows):
                 cells.append('<td>' + escape(str(value)) + '</td>')
         body_rows.append('<tr>' + ''.join(cells) + '</tr>')
     table_class = 'doubles-large doubles-standings' if standings else 'doubles-large'
+    if partnerships:
+        table_class += ' partnership-standings'
     st.markdown('<style>.doubles-scroll {overflow-x:auto;} '
                 '.doubles-scroll .doubles-large {width:auto;border-collapse:collapse;font-size:18px;line-height:1.3;}'
                 '.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td {padding:6px 8px;text-align:left;border-bottom:1px solid #8885;white-space:nowrap;}'
@@ -302,6 +314,11 @@ def show_doubles_table(rows):
                 '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
                 '.doubles-player {font-size:18px;} '
                 '.doubles-team {font-size:13px;opacity:.75;white-space:normal;max-width:240px;margin-top:2px;}'
+                '.partnership-player{white-space:normal;overflow-wrap:anywhere;font-size:18px;max-width:220px;}'
+                '@media(max-width:600px){.doubles-scroll .partnership-standings th,.doubles-scroll .partnership-standings td{padding:6px 4px;font-size:14px;}'
+                '.doubles-scroll .partnership-standings td.doubles-person{min-width:96px;width:112px;max-width:128px;white-space:normal;}'
+                '.partnership-player{font-size:14px;max-width:128px;}.partnership-player+.partnership-player{margin-top:3px;}'
+                '.partnership-standings .doubles-team{font-size:11px;max-width:128px;}.doubles-scroll .partnership-standings th{font-size:13px;}}'
                 '</style><div class="doubles-scroll"><table class="' + table_class + '"><thead><tr>' + header +
                 '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>', unsafe_allow_html=True)
 
@@ -322,7 +339,7 @@ if st.session_state.get('doubles_ranking_version') != (10, matching_version, get
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption(f'Build: visitors-seasons-2026-10-13.3 · Name matching: {matching_version}')
+    st.caption(f'Build: mobile-2026-10-14.1 · Name matching: {matching_version}')
     if not matching_ready:
         st.error('Partnership checker mismatch. Upload app.py and doubles_partnerships.py from the same download into the deployed app folder, then reboot.')
         st.caption(f"Loaded checker: {doubles_mvp.__file__} · Partnership version: {getattr(doubles_mvp, 'PARTNERSHIP_VERSION', 'missing')}")
@@ -337,7 +354,6 @@ with st.container(border=True):
                     mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
     if mvp_selection:
         season, leagues = mvp_selection
-        loading_theme = next_loading_theme()
         st.session_state.doubles_active_season = season
         if len(leagues) == 1:
             st.session_state.doubles_active_league = leagues[0]
@@ -350,6 +366,7 @@ with st.container(border=True):
 active_season = st.session_state.get('doubles_active_season', '2026–27')
 mvp_results = st.session_state.get('doubles_results', {}).get(active_season, {})
 if mvp_results:
+    st.markdown('<div id="doubles-results" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     season_label = f'{active_season} · Active season' if active_season == '2026–27' else f'*{active_season}*'
     st.subheader(f'Doubles standings · {season_label}')
     for tab, league in zip(st.tabs(list(TOURNAMENTS), key='doubles_active_league', on_change='rerun'), TOURNAMENTS):
@@ -483,6 +500,7 @@ def render_finding(league, key, issue):
                 game_details(game)
 
 
+st.markdown('<div id="competition-results" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
 results = st.session_state.get('results', {})
 visible = {}
 hidden_counts = {}
@@ -574,3 +592,7 @@ st.caption('Untouched fixtures are skipped. Missing names on recorded results ar
 
 if st.session_state.get("pending_load"):
     poll_load()
+
+scroll_request = st.session_state.pop("scroll_request", None)
+if scroll_request:
+    scroll_to_results(scroll_request)
