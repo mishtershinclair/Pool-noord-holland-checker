@@ -155,9 +155,15 @@ st.markdown('''<style>
 [data-testid="stCaptionContainer"] {font-size:15px!important;opacity:1;}
 [data-testid="stCaptionContainer"] p {font-size:15px!important;line-height:1.5;color:color-mix(in srgb, var(--text-color, #c9ced6) 82%, transparent);}
 </style>''', unsafe_allow_html=True)
-st.title('🎱 Pool Noord-Holland checker ☕')
-st.caption('App last updated: 16 October 2026, 12:54 (Amsterdam)')
-st.caption('If you encounter any issues, please contact Matt Sinclair.')
+st.markdown('''<style>
+.app-header h1 {padding-bottom:0!important;margin-bottom:4px!important;}
+.app-header p {font-size:15px;line-height:1.45;margin:2px 0;color:color-mix(in srgb, var(--text-color, #c9ced6) 82%, transparent);}
+.app-header {margin-bottom:8px;}
+</style><div class="app-header">
+<h1>🎱 Pool Noord-Holland checker ☕</h1>
+<p>App last updated: 16 October 2026, 13:05 (Amsterdam)</p>
+<p>Have an issue or an idea for improvement? Please contact <a href="mailto:mishtershinclair@gmail.com">Matt Sinclair</a>.</p>
+</div>''', unsafe_allow_html=True)
 
 
 
@@ -262,6 +268,7 @@ def show_doubles_table(rows):
                 '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:center;}'
                 '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
                 '.doubles-person {width:180px;min-width:130px;max-width:180px;white-space:normal!important;overflow-wrap:anywhere;} '
+                '.doubles-player + .doubles-player {margin-top:7px;padding-top:7px;border-top:1px solid #8885;} '
                 '.doubles-player {font-size:18px;white-space:normal;max-width:180px;overflow-wrap:anywhere;} '
                 '@media(max-width:600px){.doubles-person{width:130px;min-width:110px;max-width:140px}.doubles-player{font-size:16px;max-width:130px}.doubles-team{max-width:130px!important}.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td{padding:6px 5px}} '
                 '.doubles-team {font-size:14px;opacity:.88;white-space:normal;max-width:240px;margin-top:2px;}'
@@ -443,7 +450,8 @@ def search_executor():
 def run_search(job, events):
     """Background work has no Streamlit/session-state calls, so reruns cannot cancel it."""
     def report(value, label):
-        events.put((value, label))
+        season = job.get('season') or '2026–27'
+        events.put((value, f'{season} · {label}'))
     if job['kind'] == 'schedule':
         return get_scheduled_matches(job['day_offset'], progress=report)
     output = {}
@@ -469,7 +477,9 @@ def poll_search():
     if 'future' not in job:
         job['events'] = Queue()
         job['progress'] = None
-        job['detail'] = 'Connecting to CueScore… Please wait.'
+        season = job.get('season') or '2026–27'
+        target = ', '.join(job.get('leagues') or ['Tomorrow’s matches' if job['day_offset'] else 'Today’s matches'])
+        job['detail'] = f'{season} · {target} · Connecting to CueScore…'
         job['future'] = search_executor().submit(run_search, dict(job), job['events'])
     while True:
         try:
