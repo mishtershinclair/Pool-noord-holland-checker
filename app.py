@@ -161,7 +161,7 @@ st.markdown('''<style>
 .app-header {margin-bottom:8px;}
 </style><div class="app-header">
 <h1>🎱 Pool Noord-Holland checker ☕</h1>
-<p>App last updated: 16 October 2026, 13:11 (Amsterdam)</p>
+<p>App last updated: 16 October 2026, 13:13 (Amsterdam)</p>
 <p>Have an issue or an idea for improvement? Please contact <a href="mailto:mishtershinclair@gmail.com">Matt Sinclair</a>.</p>
 </div>''', unsafe_allow_html=True)
 
@@ -268,7 +268,8 @@ def show_doubles_table(rows):
                 '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:center;}'
                 '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
                 '.doubles-person {width:180px;min-width:130px;max-width:180px;white-space:normal!important;overflow-wrap:anywhere;} '
-                '.doubles-player + .doubles-player {margin-top:7px;padding-top:7px;border-top:1px solid #a5afbd80;} '
+                '.doubles-player + .doubles-player {margin-top:7px;padding-top:7px;position:relative;} '
+                '.doubles-player + .doubles-player::before {content:"";position:absolute;top:0;left:0;width:32px;border-top:1px solid #a5afbd80;} '
                 '.doubles-player {font-size:18px;white-space:normal;max-width:180px;overflow-wrap:anywhere;} '
                 '@media(max-width:600px){.doubles-person{width:130px;min-width:110px;max-width:140px}.doubles-player{font-size:16px;max-width:130px}.doubles-team{max-width:130px!important}.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td{padding:6px 5px}} '
                 '.doubles-team {font-size:12px;opacity:.88;white-space:normal;max-width:240px;margin-top:2px;}'
