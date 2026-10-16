@@ -1,5 +1,6 @@
 """Network completeness checks around the unchanged validator."""
 import types
+from fixture_filter import fixtures_to_check
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from threading import Lock
@@ -59,6 +60,13 @@ def _check_league(league, tournament_id, progress=None):
                     data = response.json()
                     if not isinstance(data, dict) or not isinstance(data.get('matches'), list) or not data['matches']:
                         raise ValueError('CueScore returned no fixture list.')
+                    data = dict(data, matches=fixtures_to_check(data['matches'], tournament_id))
+                    # Return the same filtered list to the validator, not only the prefetcher.
+                    original_response = response
+                    class FilteredResponse:
+                        def json(self): return data
+                        def __getattr__(self, name): return getattr(original_response, name)
+                    response = FilteredResponse()
                     # Fetch ahead; the original parser consumes responses in fixture order.
                     for fixture in data['matches']:
                         detail_url = (f'https://cuescore.com/ajax/match/matchDetails.php?'

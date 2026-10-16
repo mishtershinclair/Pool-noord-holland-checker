@@ -4,6 +4,7 @@ PARTNERSHIP_MIN_MATCHES = 5
 
 NAME_MATCHING_VERSION = '2026-10-13.1'
 
+from fixture_filter import fixtures_to_check
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -270,6 +271,9 @@ def load_league(league, tournament_id, progress=None):
     fixtures = data.get('matches')
     if not isinstance(fixtures, list) or not fixtures:
         raise ValueError('CueScore returned no fixture list.')
+    fixtures = fixtures_to_check(fixtures, tournament_id)
+    if not fixtures:
+        return aggregate(league, [], {}, {})
     teams = {str(team['teamId']) for f in fixtures for team in (f.get('playerA') or {}, f.get('playerB') or {}) if team.get('teamId')}
     jobs = [('fixture',str(f['matchId']), f'https://cuescore.com/ajax/match/matchDetails.php?tournamentId={tournament_id}&id={f["matchId"]}') for f in fixtures]
     jobs += [('roster',team,f'https://api.cuescore.com/participant/?id={team}') for team in teams]

@@ -161,7 +161,7 @@ st.markdown('''<style>
 .app-header {margin-bottom:8px;}
 </style><div class="app-header">
 <h1>🎱 Pool Noord-Holland checker ☕</h1>
-<p>App last updated: 16 October 2026, 13:19 (Amsterdam)</p>
+<p>App last updated: 16 October 2026, 13:22 (Amsterdam)</p>
 <p>Have an issue or an idea for improvement? Please contact <a href="mailto:mishtershinclair@gmail.com">Matt Sinclair</a>.</p>
 </div>''', unsafe_allow_html=True)
 
@@ -294,6 +294,7 @@ with st.container(border=True):
     if not matching_ready:
         st.error('The doubles checker file is out of date. Replace doubles_mvp.py with the matching download, then reboot the Streamlit app.')
     st.caption('Choose a season and league, or load all three leagues for that season.')
+    st.caption('Active-season checks skip unplayed future fixtures. Early-played matches and fixtures without a clear date are included.')
     mvp_selection = None
     for season, tournaments in DOUBLES_SEASONS.items():
         heading = f'{season} · Active season' if season == '2026–27' else f'*{season}*'
