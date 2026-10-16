@@ -23,7 +23,7 @@ def clear_cache():
         _cache.clear()
 
 
-def check_league(league, tournament_id, force_refresh=False):
+def check_league(league, tournament_id, force_refresh=False, progress=None):
     # Serialize checks across browser sessions to limit load on CueScore.
     with _check_lock:
         key = (league, tournament_id)
@@ -32,7 +32,7 @@ def check_league(league, tournament_id, force_refresh=False):
             result = deepcopy(cached[1])
             result["from_cache"] = True
             return result
-        result = _check_league(league, tournament_id)
+        result = _check_league(league, tournament_id, progress)
         result["from_cache"] = False
         if not result["incomplete"]:
             _cache[key] = (monotonic(), deepcopy(result))
@@ -41,7 +41,10 @@ def check_league(league, tournament_id, force_refresh=False):
         return result
 
 
-def _check_league(league, tournament_id):
+def _check_league(league, tournament_id, progress=None):
+    progress = progress or (lambda value, label: None)
+    progress(None, "Reading fixture list…")
+    consumed = set()
     failures = []
     pending = {}
     executor = ThreadPoolExecutor(max_workers=4)
@@ -64,6 +67,9 @@ def _check_league(league, tournament_id):
                             pending[detail_url] = executor.submit(requests.get, detail_url, timeout=30)
                 elif not BeautifulSoup(response.text, 'html.parser').select('tr.match.public'):
                     raise ValueError('CueScore returned no individual match rows.')
+                if url in pending:
+                    consumed.add(url)
+                    progress(.95 * len(consumed) / len(pending), f'Checked {len(consumed)} of {len(pending)} fixtures')
                 return response
             except (requests.RequestException, ValueError) as exc:
                 failures.append(url)
@@ -80,6 +86,7 @@ def _check_league(league, tournament_id):
     result['incomplete'] = bool(failures) or result['error']
     result['failed_requests'] = len(failures)
     result['checked_at'] = datetime.now(ZoneInfo('Europe/Amsterdam')).strftime('%d %B %Y at %H:%M:%S')
+    progress(1.0, 'Check complete')
     return result
 
 

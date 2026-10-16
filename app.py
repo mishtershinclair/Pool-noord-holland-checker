@@ -1,4 +1,7 @@
 import streamlit as st
+import streamlit.components.v1 as components
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue, Empty
 from contextlib import contextmanager
 from service import TOURNAMENTS, check_league
 from datetime import datetime, timedelta
@@ -41,7 +44,8 @@ def fixture_location(fixture):
     return venue['name'], venue.get('address') or '', source
 
 
-def get_scheduled_matches(day_offset=0, now=None):
+def get_scheduled_matches(day_offset=0, now=None, progress=None):
+    progress = progress or (lambda value, label: None)
     """Read only the three fixture lists, independently of result validation."""
     now = now or datetime.now(AMSTERDAM)
     base_date = now.astimezone(AMSTERDAM).date()
@@ -83,6 +87,7 @@ def get_scheduled_matches(day_offset=0, now=None):
                 result['undated'][league] = undated
         except (requests.RequestException, ValueError, TypeError, AttributeError):
             result['errors'].append(league)
+        progress((list(TOURNAMENTS).index(league) + 1) / len(TOURNAMENTS), f'Read {league} schedule')
     result['matches'].sort(key=lambda match: (match['league'], match['time'], str(match['match_no'])))
     return result
 
@@ -95,7 +100,7 @@ def next_loading_theme():
 
 
 @contextmanager
-def loading_indicator(detail, theme=None):
+def loading_indicator(detail, theme=None, progress=None, retain=False):
     """Show a lightweight animation and always remove it when loading ends."""
     theme = theme or next_loading_theme()
     placeholder = st.empty()
@@ -104,6 +109,7 @@ def loading_indicator(detail, theme=None):
     scene = {'beer': '<div class="pour"></div><div class="glass"><div class="beer"></div></div>',
              'pool': '<div class="pocket"></div><div class="ball ball-one">8</div><div class="ball ball-two">1</div><div class="ball ball-three">3</div>',
              'coffee': '<div class="coffee-drip"></div><div class="cup"><div class="coffee-fill"></div></div><div class="cup-handle"></div><div class="saucer"></div>'}[theme]
+    line_style = '' if progress is None else f'animation:none;width:{max(0, min(1, progress)) * 100:.1f}%;transform:none;transition:width .3s'
     placeholder.markdown('''<style>
     .mvp-loading{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:999990;box-sizing:border-box;width:min(540px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:10px 14px 17px;border:1px solid #46515f;border-radius:14px;background:#20252D;color:#f5f1e8;box-shadow:0 5px 24px #0004;pointer-events:none}
     .mvp-loading{--loading-accent:#e9a621}
@@ -136,11 +142,12 @@ def loading_indicator(detail, theme=None):
     </style>''' + '<div class="mvp-loading ' + theme + '" role="status" aria-live="polite">'
         + '<div class="scene" aria-hidden="true">' + scene + '</div><div><strong>'
         + escape(message) + '</strong><small>' + escape(detail)
-        + '</small></div><div class="loading-track" aria-hidden="true"><span class="loading-line"></span></div></div>', unsafe_allow_html=True)
+        + '</small></div><div class="loading-track" aria-hidden="true"><span class="loading-line" style="' + line_style + '"></span></div></div>', unsafe_allow_html=True)
     try:
         yield
     finally:
-        placeholder.empty()
+        if not retain:
+            placeholder.empty()
 
 
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
@@ -149,7 +156,7 @@ st.markdown('''<style>
 [data-testid="stCaptionContainer"] p {font-size:15px!important;line-height:1.5;color:color-mix(in srgb, var(--text-color, #c9ced6) 82%, transparent);}
 </style>''', unsafe_allow_html=True)
 st.title('🎱 Pool Noord-Holland checker ☕')
-st.caption('App last updated: 16 October 2026, 12:43 (Amsterdam)')
+st.caption('App last updated: 16 October 2026, 12:54 (Amsterdam)')
 st.caption('If you encounter any issues, please contact Matt Sinclair.')
 
 
@@ -167,26 +174,34 @@ def game_details(match):
     st.caption(f"{match['type']} / {match['discipline']}" + (f' / Race to {race}' if race is not None else ''))
 
 
+def queue_search(kind, season=None, leagues=None, day_offset=0):
+    if st.session_state.get('active_search'):
+        return
+    if kind == 'mvp':
+        st.session_state.doubles_active_season = season
+        st.session_state.doubles_active_league = leagues[0]
+    st.session_state.active_search = {'kind': kind, 'season': season, 'leagues': leagues,
+                                      'day_offset': day_offset, 'theme': next_loading_theme()}
+
+
+busy = bool(st.session_state.get('active_search'))
+
+
 with st.container(border=True):
     st.subheader('📅 Match schedule')
     st.caption('See who is playing and where, across all three leagues.')
     today_column, tomorrow_column = st.columns(2)
     with today_column:
-        show_today = st.button("📅 See today's matches", type='primary', use_container_width=True)
+        show_today = st.button("📅 See today's matches", disabled=busy, on_click=queue_search, args=("schedule", None, None, 0), type='primary', use_container_width=True)
     with tomorrow_column:
-        show_tomorrow = st.button("📅 See tomorrow's matches", type='primary', use_container_width=True)
-
-if show_today or show_tomorrow:
-    day_offset = 1 if show_tomorrow else 0
-    day_label = 'tomorrow' if day_offset else 'today'
-    with loading_indicator(f"Reading {day_label}'s fixtures from CueScore…"):
-        st.session_state.match_schedule = get_scheduled_matches(day_offset)
+        show_tomorrow = st.button("📅 See tomorrow's matches", disabled=busy, on_click=queue_search, args=("schedule", None, None, 1), type='primary', use_container_width=True)
 
 schedule = st.session_state.get('match_schedule')
 if schedule and schedule['base_date'] != datetime.now(AMSTERDAM).date().isoformat():
     st.info('The date has changed. Select a schedule button to refresh the fixtures.')
     schedule = None
 if schedule:
+    st.markdown('<div id="schedule-results" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     day_label = 'tomorrow' if schedule['day_offset'] else 'today'
     st.subheader(f"{day_label.capitalize()}'s matches · {schedule['date_label']}")
     st.caption('Times shown in Amsterdam local time. Select either schedule button to refresh.')
@@ -230,7 +245,8 @@ def show_doubles_table(rows):
         for column in columns:
             value = row.get(column, '')
             if standings and column in ('Player', 'Partnership'):
-                content = '<div class="doubles-player">' + escape(str(value)) + '</div>'
+                names = str(value).split(' + ') if partnerships else [str(value)]
+                content = ''.join('<div class="doubles-player">' + escape(name) + '</div>' for name in names)
                 content += '<div class="doubles-team">' + escape(str(row.get('Team', ''))) + '</div>'
                 cells.append('<td class="doubles-person">' + content + '</td>')
             else:
@@ -245,7 +261,9 @@ def show_doubles_table(rows):
                 '.doubles-scroll .doubles-large th {font-size:15px;font-weight:700;vertical-align:bottom;}'
                 '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:center;}'
                 '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
-                '.doubles-player {font-size:18px;} '
+                '.doubles-person {width:180px;min-width:130px;max-width:180px;white-space:normal!important;overflow-wrap:anywhere;} '
+                '.doubles-player {font-size:18px;white-space:normal;max-width:180px;overflow-wrap:anywhere;} '
+                '@media(max-width:600px){.doubles-person{width:130px;min-width:110px;max-width:140px}.doubles-player{font-size:16px;max-width:130px}.doubles-team{max-width:130px!important}.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td{padding:6px 5px}} '
                 '.doubles-team {font-size:14px;opacity:.88;white-space:normal;max-width:240px;margin-top:2px;}'
                 '</style><div class="doubles-scroll"><table class="' + table_class + '"><thead><tr>' + header +
                 '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>', unsafe_allow_html=True)
@@ -274,27 +292,16 @@ with st.container(border=True):
         st.markdown(f'### {heading}')
         for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
             with column:
-                if st.button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=True):
-                    mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
-    if mvp_selection:
-        season, leagues = mvp_selection
-        loading_theme = next_loading_theme()
-        st.session_state.doubles_active_season = season
-        if len(leagues) == 1:
-            st.session_state.doubles_active_league = leagues[0]
-        season_results = st.session_state.setdefault('doubles_results', {}).setdefault(season, {})
-        for league in leagues:
-            with loading_indicator(season + ' · ' + league, loading_theme):
-                try:
-                    season_results[league] = load_doubles_league(league, DOUBLES_SEASONS[season][league])
-                except (requests.RequestException, ValueError, KeyError, TypeError):
-                    season_results[league] = {'error': True}
+                st.button(label, key='mvp_' + season + '_' + label, disabled=busy or not matching_ready,
+                          on_click=queue_search, args=('mvp', season, list(tournaments) if label == 'All leagues' else [label]),
+                          type='primary', use_container_width=True)
     st.caption('Ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
     st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results. Confirmed historical names and unique spelling variants are matched automatically; ambiguous names remain excluded.')
 
 active_season = st.session_state.get('doubles_active_season', '2026–27')
 mvp_results = st.session_state.get('doubles_results', {}).get(active_season, {})
 if mvp_results:
+    st.markdown('<div id="mvp-results" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     season_label = f'{active_season} · Active season' if active_season == '2026–27' else f'*{active_season}*'
     st.subheader(f'Doubles standings · {season_label}')
     for tab, league in zip(st.tabs(list(TOURNAMENTS), key='doubles_active_league', on_change='rerun'), TOURNAMENTS):
@@ -340,14 +347,9 @@ st.subheader('🔎 Check competition results')
 check_selection = None
 for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
     with column:
-        if st.button(label, key='check_' + label, type='primary', use_container_width=True):
-            check_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
-if check_selection:
-    st.session_state.setdefault('results', {})
-    loading_theme = next_loading_theme()
-    for index, league in enumerate(check_selection):
-        with loading_indicator(f'Checking {league} · {index + 1} of {len(check_selection)}', loading_theme):
-            st.session_state.results[league] = check_league(league, TOURNAMENTS[league], force_refresh=True)
+        st.button(label, key='check_' + label, disabled=busy, on_click=queue_search,
+                  args=('check', None, list(TOURNAMENTS) if label == 'All leagues' else [label]),
+                  type='primary', use_container_width=True)
 
 def render_finding(league, key, issue):
     title = 'Forfeit notice' if issue.get('kind') == 'forfeit' else ISSUE_TITLES[key]
@@ -395,6 +397,7 @@ def render_finding(league, key, issue):
                 game_details(game)
 
 
+st.markdown('<div id="check-results" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
 results = st.session_state.get('results', {})
 visible = results
 
@@ -430,3 +433,84 @@ for league, result in visible.items():
 st.caption('Untouched fixtures are skipped. Missing names on recorded results are flagged. Participation is checked only when all six games have complete player selections. Straightpool is excluded from numeric score checks. Forfeits are notices, not score errors.')
 
 
+
+
+@st.cache_resource
+def search_executor():
+    return ThreadPoolExecutor(max_workers=4)
+
+
+def run_search(job, events):
+    """Background work has no Streamlit/session-state calls, so reruns cannot cancel it."""
+    def report(value, label):
+        events.put((value, label))
+    if job['kind'] == 'schedule':
+        return get_scheduled_matches(job['day_offset'], progress=report)
+    output = {}
+    for index, league in enumerate(job['leagues']):
+        def update(value, label):
+            fraction = None if value is None and index == 0 else (index + (value or 0)) / len(job['leagues'])
+            report(fraction, f'{league} · {label}')
+        if job['kind'] == 'mvp':
+            try:
+                output[league] = load_doubles_league(league, DOUBLES_SEASONS[job['season']][league], progress=update)
+            except (requests.RequestException, ValueError, KeyError, TypeError):
+                output[league] = {'error': True}
+        else:
+            output[league] = check_league(league, TOURNAMENTS[league], force_refresh=True, progress=update)
+    return output
+
+
+@st.fragment(run_every=.5 if busy else None)
+def poll_search():
+    job = st.session_state.get('active_search')
+    if not job:
+        return
+    if 'future' not in job:
+        job['events'] = Queue()
+        job['progress'] = None
+        job['detail'] = 'Connecting to CueScore… Please wait.'
+        job['future'] = search_executor().submit(run_search, dict(job), job['events'])
+    while True:
+        try:
+            value, label = job['events'].get_nowait()
+            if value is not None:
+                job['progress'] = max(job['progress'] or 0, value)
+            job['detail'] = label
+        except Empty:
+            break
+    if job['future'].done():
+        try:
+            result = job['future'].result()
+            if job['kind'] == 'schedule':
+                st.session_state.match_schedule = result
+            elif job['kind'] == 'mvp':
+                st.session_state.setdefault('doubles_results', {}).setdefault(job['season'], {}).update(result)
+            else:
+                st.session_state.setdefault('results', {}).update(result)
+            st.session_state.scroll_results = job['kind'] + '-results'
+        except Exception:
+            st.session_state.search_error = 'Could not finish this request. Please try again.'
+        finally:
+            st.session_state.pop('active_search', None)
+        st.rerun()
+    with loading_indicator(job['detail'], job['theme'], progress=job['progress'], retain=True):
+        pass
+
+
+poll_search()
+if st.session_state.get('search_error'):
+    st.error(st.session_state.pop('search_error'))
+if st.session_state.get('scroll_results'):
+    target = st.session_state.pop('scroll_results')
+    # Run after the result containers arrive; retry briefly for slower mobile rendering.
+    components.html('''<script>
+    let tries=0;
+    const timer=setInterval(()=>{
+      try {
+        const el=window.parent.document.getElementById("''' + target + '''");
+        if(el){el.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});clearInterval(timer);}
+      } catch(e){clearInterval(timer);}
+      if(++tries>=20)clearInterval(timer);
+    },100);
+    </script>''', height=0)

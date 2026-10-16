@@ -259,7 +259,9 @@ def aggregate(league, fixtures, details, rosters):
             'checked_at': datetime.now(ZoneInfo('Europe/Amsterdam')).strftime('%d %B %Y %H:%M')}
 
 
-def load_league(league, tournament_id):
+def load_league(league, tournament_id, progress=None):
+    progress = progress or (lambda value, label: None)
+    progress(None, "Reading fixture list…")
     def get(url):
         response = requests.get(url, timeout=30)
         response.raise_for_status()
@@ -289,8 +291,10 @@ def load_league(league, tournament_id):
             return kind, identity, ValueError('Public data unavailable')
     details, rosters = {}, {}
     with ThreadPoolExecutor(max_workers=4) as pool:
-        for kind, identity, value in pool.map(fetch, jobs):
+        for completed, (kind, identity, value) in enumerate(pool.map(fetch, jobs), 1):
             (details if kind == 'fixture' else rosters)[identity] = value
+            progress(.8 * completed / len(jobs), f'Read {completed} of {len(jobs)} fixture/roster records')
+    progress(.8, 'Checking historical player names…')
     # The season MVP page retains public player/team associations when current
     # rosters change. Use its IDs, then the participant endpoint for name fields.
     try:
@@ -319,7 +323,9 @@ def load_league(league, tournament_id):
             known = {str(person['playerId']): person for roster in rosters.values()
                      if isinstance(roster, list) for person in roster if person.get('playerId')}
             with ThreadPoolExecutor(max_workers=4) as pool:
-                known.update({identity:person for identity,person in pool.map(fetch_person, missing_ids) if person})
+                for completed, (identity, person) in enumerate(pool.map(fetch_person, missing_ids), 1):
+                    if person: known[identity] = person
+                    progress(.8 + .15 * completed / len(missing_ids), f'Checked {completed} of {len(missing_ids)} historical profiles')
             for team_id, player_ids in historical.items():
                 if not isinstance(rosters.get(team_id), list):
                     continue
@@ -327,4 +333,7 @@ def load_league(league, tournament_id):
                 rosters[team_id].extend(known[identity] for identity in player_ids - included if identity in known)
     except (requests.RequestException, ValueError, KeyError, TypeError):
         pass  # Any unresolved scored pair is explicitly reported by aggregate.
-    return aggregate(league, fixtures, details, rosters)
+    progress(.95, 'Calculating standings…')
+    result = aggregate(league, fixtures, details, rosters)
+    progress(1.0, 'Standings ready')
+    return result
