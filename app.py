@@ -1,26 +1,19 @@
 import streamlit as st
 from contextlib import contextmanager
-from concurrent.futures import ThreadPoolExecutor
-from time import monotonic
-import streamlit.components.v2 as components
 from service import TOURNAMENTS, check_league
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import requests
 from html import escape
-import doubles_partnerships as doubles_mvp
-from doubles_partnerships import load_league as load_doubles_league
-from review_store import (ReviewStore, StoreError, ISSUE_TITLES, ERROR_KEYS,
-                          finding_id, finding_record)
+import doubles_mvp
+from doubles_mvp import load_league as load_doubles_league
+ISSUE_TITLES = {
+    'format_issues': 'Format issue', 'race_to_issues': 'Race-to issue',
+    'score_issues': 'Score issue', 'player_issues': 'Player participation issue',
+    'missing_player_issues': 'Missing player issue', 'special_scores': 'Special result',
+}
+ERROR_KEYS = tuple(key for key in ISSUE_TITLES if key != 'special_scores')
 
-
-
-
-SCROLL_JS = "\nexport default function(component) {\n    const {data} = component;\n    if (!data || !data.target || !data.nonce) return;\n    let observer, timer;\n    function reveal() {\n        const target = document.getElementById(data.target);\n        if (!target || target.getClientRects().length === 0) return false;\n        if (target.dataset.lastScroll !== data.nonce) {\n            target.dataset.lastScroll = data.nonce;\n            target.focus({preventScroll:true});\n            target.scrollIntoView({block:'start', behavior:\n                matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});\n        }\n        if (observer) observer.disconnect();\n        if (timer) clearTimeout(timer);\n        return true;\n    }\n    if (!reveal()) {\n        observer = new MutationObserver(reveal);\n        observer.observe(document.body, {childList:true, subtree:true, attributes:true});\n        timer = setTimeout(() => observer.disconnect(), 8000);\n    }\n    return () => { if (observer) observer.disconnect(); if (timer) clearTimeout(timer); };\n}\n"
-
-def scroll_to_results(request):
-    scroll_component = components.component('pool_results_scroll', js=SCROLL_JS)
-    scroll_component(key='results_scroll', data=request)
 
 AMSTERDAM = ZoneInfo('Europe/Amsterdam')
 
@@ -96,25 +89,29 @@ def get_scheduled_matches(day_offset=0, now=None):
 
 
 def next_loading_theme():
-    count = st.session_state.get('loading_cycle_index', 0)
-    st.session_state.loading_cycle_index = count + 1
-    return ('coffee', 'beer', 'pool')[count % 3]
+    count = st.session_state.get('loading_animation_count', 0)
+    st.session_state.loading_animation_count = count + 1
+    return ('beer', 'pool', 'coffee')[count % 3]
 
 
 @contextmanager
-def loading_indicator(detail, theme=None, keep=False):
+def loading_indicator(detail, theme=None):
     """Show a lightweight animation and always remove it when loading ends."""
-    theme = theme or 'coffee'
+    theme = theme or next_loading_theme()
     placeholder = st.empty()
     message = {'beer': 'Pulling a fresh round of results…',
-               'pool': 'Racking up the results…', 'coffee': 'Brewing your results… Lekker bij de coffee',
-               'smoking': 'Still loading—please wait.'}[theme]
+               'pool': 'Racking up the results…', 'coffee': 'Brewing your results… Lekker bij de coffee'}[theme]
     scene = {'beer': '<div class="pour"></div><div class="glass"><div class="beer"></div></div>',
              'pool': '<div class="pocket"></div><div class="ball ball-one">8</div><div class="ball ball-two">1</div><div class="ball ball-three">3</div>',
-             'smoking': '<div class="cigarette"><div class="ember"></div></div><div class="smoke smoke-one"></div><div class="smoke smoke-two"></div><div class="smoke smoke-three"></div>',
              'coffee': '<div class="coffee-drip"></div><div class="cup"><div class="coffee-fill"></div></div><div class="cup-handle"></div><div class="saucer"></div>'}[theme]
     placeholder.markdown('''<style>
-    .mvp-loading{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:999990;box-sizing:border-box;width:min(540px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid #9aaebc;border-radius:14px;background:#fffdf7;color:#182235;box-shadow:0 5px 24px #0004;pointer-events:none}
+    .mvp-loading{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:999990;box-sizing:border-box;width:min(540px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:10px 14px 17px;border:1px solid #46515f;border-radius:14px;background:#20252D;color:#f5f1e8;box-shadow:0 5px 24px #0004;pointer-events:none}
+    .mvp-loading{--loading-accent:#e9a621}
+    .mvp-loading.pool{--loading-accent:#49ba8a}
+    .mvp-loading.coffee{--loading-accent:#c58b57}
+    .mvp-loading .loading-track{position:absolute;bottom:0;left:0;right:0;height:5px;overflow:hidden;border-radius:0 0 14px 14px;background:#ffffff15}
+    .mvp-loading .loading-line{display:block;height:100%;width:35%;background:var(--loading-accent);animation:mvp-travel 1.6s ease-in-out infinite}
+    @keyframes mvp-travel{from{transform:translateX(-110%)}to{transform:translateX(390%)}}
     .mvp-loading .scene{position:relative;width:150px;height:94px;overflow:hidden;flex-shrink:0}
     .mvp-loading .glass{position:absolute;left:47px;top:22px;width:49px;height:63px;border:3px solid #9aaebc;border-radius:3px 3px 13px 13px;overflow:hidden;background:#ffffff18}
     .mvp-loading .beer{position:absolute;bottom:0;width:100%;height:0;background:#e9a621;border-top:9px solid #fff4dc;animation:mvp-fill 3s ease-in-out infinite}
@@ -127,111 +124,34 @@ def loading_indicator(detail, theme=None, keep=False):
     .mvp-loading .ball-two{background:#e9bb26;color:#17202a;animation-delay:1.2s}
     .mvp-loading .ball-three{background:#c44343;animation-delay:2.4s}
     @keyframes mvp-roll{0%{transform:translateX(0) rotate(0);opacity:0}8%{opacity:1}68%{transform:translateX(130px) rotate(300deg) scale(1);opacity:1}80%,100%{transform:translateX(137px) rotate(360deg) scale(0);opacity:0}}
-    .mvp-loading strong{font-size:18px}.mvp-loading small{display:block;margin-top:5px;opacity:.75}
+    .mvp-loading strong{font-size:18px}.mvp-loading small{display:block;margin-top:5px;opacity:.88}
     .mvp-loading .cup{position:absolute;left:42px;top:31px;width:58px;height:48px;border:4px solid #c8b9a5;border-radius:3px 3px 20px 20px;overflow:hidden;background:#fff}
     .mvp-loading .coffee-fill{position:absolute;bottom:0;width:100%;background:#714324;animation:mvp-coffee 3s infinite}
     .mvp-loading .coffee-drip{position:absolute;left:69px;top:5px;width:5px;height:63px;background:#714324;animation:mvp-pour 3s infinite}
     .mvp-loading .cup-handle{position:absolute;left:104px;top:40px;width:15px;height:24px;border:4px solid #c8b9a5;border-left:0;border-radius:0 14px 14px 0}
     .mvp-loading .saucer{position:absolute;left:31px;top:86px;width:84px;height:5px;border-radius:50%;background:#c8b9a5}
     @keyframes mvp-coffee{0%,10%{height:0}75%,95%{height:36px}100%{height:0}}
-    .mvp-loading .cigarette{position:absolute;left:25px;top:66px;width:96px;height:12px;background:linear-gradient(to right,#c39656 0 25%,#eee 25% 94%,#555 94%);border:1px solid #aaa;border-radius:3px;transform:rotate(-8deg)}
-    .mvp-loading .ember{position:absolute;right:0;width:6px;height:100%;background:#ed713d;box-shadow:0 0 7px #eb6a32}
-    .mvp-loading .smoke{position:absolute;left:112px;top:55px;width:11px;height:11px;border-radius:50%;background:#8b949d80;animation:mvp-smoke 2.4s ease-out infinite}
-    .mvp-loading .smoke-two{animation-delay:.8s}.mvp-loading .smoke-three{animation-delay:1.6s}
-    @keyframes mvp-smoke{0%{transform:translate(0,0) scale(.5);opacity:0}15%{opacity:.8}100%{transform:translate(-22px,-50px) scale(2.5);opacity:0}}
-    @media(max-width:600px){.mvp-loading .scene{zoom:.65}.mvp-loading strong{font-size:16px}.mvp-loading small{font-size:12px}}
+    @media(max-width:600px){.mvp-loading .scene{zoom:.65}.mvp-loading strong{font-size:16px}.mvp-loading small{font-size:14px}}
     @media(prefers-reduced-motion:reduce){.mvp-loading *{animation:none!important}.mvp-loading .beer{height:40px}.mvp-loading .coffee-fill{height:36px}.mvp-loading .coffee-drip{display:none}.mvp-loading .pour{display:none}.mvp-loading .ball{left:10px}.mvp-loading .ball-two{left:42px}.mvp-loading .ball-three{left:74px}}
     </style>''' + '<div class="mvp-loading ' + theme + '" role="status" aria-live="polite">'
         + '<div class="scene" aria-hidden="true">' + scene + '</div><div><strong>'
         + escape(message) + '</strong><small>' + escape(detail)
-        + '</small></div></div>', unsafe_allow_html=True)
+        + '</small></div><div class="loading-track" aria-hidden="true"><span class="loading-line"></span></div></div>', unsafe_allow_html=True)
     try:
         yield
     finally:
-        if not keep:
-            placeholder.empty()
+        placeholder.empty()
 
-
-
-def action_button(*args, **kwargs):
-    clicked = st.button(*args, **kwargs)
-    if clicked and st.session_state.get('pending_load'):
-        st.session_state.smoking_until = monotonic() + 4
-        return False
-    return clicked
-
-
-def start_load(kind, detail, jobs, season=None):
-    if st.session_state.get('pending_load'):
-        st.session_state.smoking_until = monotonic() + 4
-        return
-    def run():
-        results = {}
-        for label, function, args, kwargs in jobs:
-            try:
-                results[label] = (True, function(*args, **kwargs))
-            except Exception:
-                results[label] = (False, None)
-        return results
-    executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(run)
-    executor.shutdown(wait=False)
-    st.session_state.pending_load = {'future': future, 'kind': kind,
-        'detail': detail, 'season': season, 'theme': next_loading_theme()}
-
-
-@st.fragment(run_every=1)
-def poll_load():
-    pending = st.session_state.get('pending_load')
-    if not pending:
-        return
-    if pending['future'].done():
-        results = pending['future'].result()
-        failures = []
-        for label, (ok, value) in results.items():
-            if pending['kind'] == 'doubles':
-                target = st.session_state.setdefault('doubles_results', {}).setdefault(pending['season'], {})
-                target[label] = value if ok else {'error': True}
-            elif ok and pending['kind'] == 'schedule':
-                st.session_state.match_schedule = value
-            elif ok:
-                st.session_state.setdefault('results', {})[label] = value
-            if not ok:
-                failures.append(label)
-        st.session_state.load_failure = ', '.join(failures)
-        target = {'doubles': 'doubles-results', 'schedule': 'schedule-results', 'checks': 'competition-results'}[pending['kind']]
-        if failures and pending['kind'] == 'schedule':
-            target = 'load-feedback'
-        st.session_state.scroll_request = {'target': target, 'nonce': str(monotonic())}
-        st.session_state.pop('pending_load', None)
-        st.session_state.pop('smoking_until', None)
-        st.rerun()
-    else:
-        theme = 'smoking' if monotonic() < st.session_state.get('smoking_until', 0) else pending['theme']
-        with loading_indicator(pending['detail'], theme, keep=True):
-            # Keep the placeholder until the next fragment refresh.
-            st.empty()
 
 st.set_page_config(page_title='Pool Noord-Holland checker ☕', page_icon='🎱', layout='wide')
-st.markdown("""<style>
-[data-testid="stButton"] button p {
-    font-size:18px;
-    line-height:1.35;
-    white-space:normal;
-    overflow-wrap:anywhere;
-}
-[data-testid="stButton"] button {
-    height:auto;
-    min-height:44px;
-}
-</style>""", unsafe_allow_html=True)
-
+st.markdown('''<style>
+[data-testid="stCaptionContainer"] {font-size:15px!important;opacity:1;}
+[data-testid="stCaptionContainer"] p {font-size:15px!important;line-height:1.5;color:color-mix(in srgb, var(--text-color, #c9ced6) 82%, transparent);}
+</style>''', unsafe_allow_html=True)
 st.title('🎱 Pool Noord-Holland checker ☕')
+st.caption('App last updated: 16 October 2026, 12:43 (Amsterdam)')
 st.caption('If you encounter any issues, please contact Matt Sinclair.')
-st.markdown('<div id="load-feedback" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
-if st.session_state.get('load_failure'):
-    st.warning('Could not load: ' + st.session_state.load_failure + '. Please retry.')
-st.caption('2026/2027 season · Check competition entries on CueScore · Doubles MVP compact tables')
+
 
 
 def fixture_context(league, fixture):
@@ -252,22 +172,21 @@ with st.container(border=True):
     st.caption('See who is playing and where, across all three leagues.')
     today_column, tomorrow_column = st.columns(2)
     with today_column:
-        show_today = action_button("📅 See today's matches", type='primary', use_container_width=True)
+        show_today = st.button("📅 See today's matches", type='primary', use_container_width=True)
     with tomorrow_column:
-        show_tomorrow = action_button("📅 See tomorrow's matches", type='primary', use_container_width=True)
+        show_tomorrow = st.button("📅 See tomorrow's matches", type='primary', use_container_width=True)
 
 if show_today or show_tomorrow:
     day_offset = 1 if show_tomorrow else 0
     day_label = 'tomorrow' if day_offset else 'today'
-    start_load('schedule', f"Reading {day_label}'s fixtures from CueScore…",
-               [('schedule', get_scheduled_matches, (day_offset,), {})])
+    with loading_indicator(f"Reading {day_label}'s fixtures from CueScore…"):
+        st.session_state.match_schedule = get_scheduled_matches(day_offset)
 
 schedule = st.session_state.get('match_schedule')
 if schedule and schedule['base_date'] != datetime.now(AMSTERDAM).date().isoformat():
     st.info('The date has changed. Select a schedule button to refresh the fixtures.')
     schedule = None
 if schedule:
-    st.markdown('<div id="schedule-results" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     day_label = 'tomorrow' if schedule['day_offset'] else 'today'
     st.subheader(f"{day_label.capitalize()}'s matches · {schedule['date_label']}")
     st.caption('Times shown in Amsterdam local time. Select either schedule button to refresh.')
@@ -311,12 +230,7 @@ def show_doubles_table(rows):
         for column in columns:
             value = row.get(column, '')
             if standings and column in ('Player', 'Partnership'):
-                if column == 'Partnership':
-                    partners = row.get('Partners') or str(value).split(' + ', 1)
-                    content = '<span class="partnership-plus" aria-hidden="true">+</span>'.join(
-                        '<div class="partnership-player">' + escape(str(name)) + '</div>' for name in partners)
-                else:
-                    content = '<div class="doubles-player">' + escape(str(value)) + '</div>'
+                content = '<div class="doubles-player">' + escape(str(value)) + '</div>'
                 content += '<div class="doubles-team">' + escape(str(row.get('Team', ''))) + '</div>'
                 cells.append('<td class="doubles-person">' + content + '</td>')
             else:
@@ -325,10 +239,6 @@ def show_doubles_table(rows):
                 cells.append('<td>' + escape(str(value)) + '</td>')
         body_rows.append('<tr>' + ''.join(cells) + '</tr>')
     table_class = 'doubles-large doubles-standings' if standings else 'doubles-large'
-    if partnerships:
-        table_class += ' partnership-standings'
-    elif standings:
-        table_class += ' individual-standings'
     st.markdown('<style>.doubles-scroll {overflow-x:auto;} '
                 '.doubles-scroll .doubles-large {width:auto;border-collapse:collapse;font-size:18px;line-height:1.3;}'
                 '.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td {padding:6px 8px;text-align:left;border-bottom:1px solid #8885;white-space:nowrap;}'
@@ -336,22 +246,7 @@ def show_doubles_table(rows):
                 '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:center;}'
                 '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
                 '.doubles-player {font-size:18px;} '
-                '.individual-standings td.doubles-person{width:170px;max-width:170px;white-space:normal!important;}'
-                '.individual-standings .doubles-player,.individual-standings .doubles-team{max-width:170px;white-space:normal;overflow-wrap:anywhere;}'
-                '.doubles-team {font-size:13px;opacity:.75;white-space:normal;max-width:240px;margin-top:2px;}'
-                '.partnership-player{white-space:normal;overflow-wrap:anywhere;font-size:18px;max-width:220px;box-sizing:border-box;padding:3px 5px;border:1px solid #8884;border-radius:5px;background:#8881;font-weight:600;}'
-                '.partnership-plus{display:block;text-align:center;font-size:12px;line-height:1;margin:3px 0;opacity:.65;}'
-                '.partnership-standings tbody tr:nth-child(even){background:#8881;}'
-                '.partnership-standings .doubles-person{padding-top:9px!important;padding-bottom:9px!important;}'
-                '@media(max-width:600px){.doubles-scroll .partnership-standings th,.doubles-scroll .partnership-standings td{padding:6px 4px;font-size:14px;}'
-                '.doubles-scroll .partnership-standings td.doubles-person{min-width:96px;width:112px;max-width:128px;white-space:normal;}'
-                '.partnership-player{font-size:14px;max-width:128px;}'
-                '.partnership-standings .doubles-team{font-size:11px;max-width:128px;}.doubles-scroll .partnership-standings th{font-size:13px;}}'
-                '@media(max-width:600px){.doubles-scroll .individual-standings th,.doubles-scroll .individual-standings td{padding:6px 4px;font-size:14px;}'
-                '.doubles-scroll .individual-standings th{font-size:13px;}'
-                '.doubles-scroll .individual-standings td.doubles-person{width:112px;min-width:96px;max-width:112px;}'
-                '.individual-standings .doubles-player{font-size:14px;max-width:112px;line-height:1.3;}'
-                '.individual-standings .doubles-team{font-size:11px;max-width:112px;}}'
+                '.doubles-team {font-size:14px;opacity:.88;white-space:normal;max-width:240px;margin-top:2px;}'
                 '</style><div class="doubles-scroll"><table class="' + table_class + '"><thead><tr>' + header +
                 '</tr></thead><tbody>' + ''.join(body_rows) + '</tbody></table></div>', unsafe_allow_html=True)
 
@@ -360,8 +255,6 @@ DOUBLES_SEASONS = {
     '2026–27': dict(TOURNAMENTS),
     '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
     '2024–25': {'Eerste klasse': 46283263, 'Tweede klasse': 46283257, 'Derde klasse': 46283269},
-    '2023–24': {'Eerste klasse': 29400235, 'Tweede klasse': 29400241, 'Derde klasse': 29400247},
-    '2022–23': {'Eerste klasse': 17011009, 'Tweede klasse': 17011003, 'Derde klasse': 17010994},
 }
 matching_version = getattr(doubles_mvp, 'NAME_MATCHING_VERSION', 'older version')
 matching_ready = matching_version == '2026-10-13.1' and getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None) == '2026-10-13.1'
@@ -372,10 +265,8 @@ if st.session_state.get('doubles_ranking_version') != (10, matching_version, get
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
-    st.caption(f'Build: original-larger-text-2026-10-15.1 · Name matching: {matching_version}')
     if not matching_ready:
-        st.error('Partnership checker mismatch. Upload app.py and doubles_partnerships.py from the same download into the deployed app folder, then reboot.')
-        st.caption(f"Loaded checker: {doubles_mvp.__file__} · Partnership version: {getattr(doubles_mvp, 'PARTNERSHIP_VERSION', 'missing')}")
+        st.error('The doubles checker file is out of date. Replace doubles_mvp.py with the matching download, then reboot the Streamlit app.')
     st.caption('Choose a season and league, or load all three leagues for that season.')
     mvp_selection = None
     for season, tournaments in DOUBLES_SEASONS.items():
@@ -383,23 +274,27 @@ with st.container(border=True):
         st.markdown(f'### {heading}')
         for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
             with column:
-                if action_button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=True):
+                if st.button(label, key='mvp_' + season + '_' + label, disabled=not matching_ready, type='primary', use_container_width=True):
                     mvp_selection = (season, list(tournaments) if label == 'All leagues' else [label])
     if mvp_selection:
         season, leagues = mvp_selection
+        loading_theme = next_loading_theme()
         st.session_state.doubles_active_season = season
         if len(leagues) == 1:
             st.session_state.doubles_active_league = leagues[0]
-        start_load('doubles', season + ' · ' + ', '.join(leagues),
-                   [(league, load_doubles_league, (league, DOUBLES_SEASONS[season][league]), {})
-                    for league in leagues], season=season)
+        season_results = st.session_state.setdefault('doubles_results', {}).setdefault(season, {})
+        for league in leagues:
+            with loading_indicator(season + ' · ' + league, loading_theme):
+                try:
+                    season_results[league] = load_doubles_league(league, DOUBLES_SEASONS[season][league])
+                except (requests.RequestException, ValueError, KeyError, TypeError):
+                    season_results[league] = {'error': True}
     st.caption('Ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
     st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results. Confirmed historical names and unique spelling variants are matched automatically; ambiguous names remain excluded.')
 
 active_season = st.session_state.get('doubles_active_season', '2026–27')
 mvp_results = st.session_state.get('doubles_results', {}).get(active_season, {})
 if mvp_results:
-    st.markdown('<div id="doubles-results" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     season_label = f'{active_season} · Active season' if active_season == '2026–27' else f'*{active_season}*'
     st.subheader(f'Doubles standings · {season_label}')
     for tab, league in zip(st.tabs(list(TOURNAMENTS), key='doubles_active_league', on_change='rerun'), TOURNAMENTS):
@@ -413,6 +308,7 @@ if mvp_results:
                 continue
             if standing['warnings']:
                 st.warning(f"Provisional standings: {len(standing['warnings'])} game or fixture problem(s) need review. Affected results have not been counted.")
+                st.caption('Note: This can happen when a player changes their name or a substitute is no longer listed on the team. Other causes are possible—expand “Results requiring review” below for details.')
             st.caption(f"{standing['counted']} played doubles games counted · {len(standing['forfeits'])} forfeit notice(s) · Updated {standing['checked_at']} (Amsterdam)")
             st.subheader('Top 3 Doubles Partnerships')
             st.caption('5-match minimum · Ranked by win percentage, then wins, then frame difference. Exact ties share a rank; tied pairs are displayed by name. Top 3 shows up to three qualifying partnerships.')
@@ -438,54 +334,20 @@ if mvp_results:
                     show_doubles_table(standing['warnings'])
 
 
-force_refresh = st.checkbox('Fetch fresh results (skip cache)', value=False)
-st.caption('Completed checks are reused for up to 2 minutes. Select fresh results after correcting an entry.')
+
 
 st.subheader('🔎 Check competition results')
 check_selection = None
 for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
     with column:
-        if action_button(label, key='check_' + label, type='primary', use_container_width=True):
+        if st.button(label, key='check_' + label, type='primary', use_container_width=True):
             check_selection = list(TOURNAMENTS) if label == 'All leagues' else [label]
 if check_selection:
-    start_load('checks', 'Checking ' + ', '.join(check_selection),
-               [(league, check_league, (league, TOURNAMENTS[league]), {'force_refresh': force_refresh})
-                for league in check_selection])
-
-# Shared ignores are loaded independently of cached CueScore checks.
-try:
-    review_settings = st.secrets.get('shared_ignores', {})
-except FileNotFoundError:
-    review_settings = {}
-store = ReviewStore(review_settings.get('url', ''), review_settings.get('secret_key', ''),
-                    review_settings.get('admin_password', ''))
-ignored = {}
-store_ready = False
-if store.configured:
-    try:
-        with loading_indicator('Loading shared ignored findings…'):
-            ignored = store.load()
-        store_ready = True
-    except StoreError as error:
-        st.warning(str(error) + ' All findings are shown until storage is available.')
-else:
-    st.info('Shared ignoring is not connected yet. Checks work normally; connect shared storage to enable ignore and restore.')
-
-if 'review_feedback' in st.session_state:
-    st.success(st.session_state.pop('review_feedback'))
-
-with st.expander('Manage shared ignores'):
-    st.caption('Ignored findings are hidden for everyone. Only the administrator can ignore or restore them. Changes appear when this page refreshes or a check runs.')
-    action_button('Refresh shared ignores')
-    if store.writable:
-        st.text_input('Administrator password', type='password', key='review_password')
-        if st.session_state.get('review_password') and not store.authorized(st.session_state.review_password):
-            st.warning('The administrator password is incorrect.')
-    elif store.configured:
-        st.caption('Set an administrator password in app settings to enable changes.')
-password = st.session_state.get('review_password', '')
-can_manage = store_ready and store.authorized(password)
-
+    st.session_state.setdefault('results', {})
+    loading_theme = next_loading_theme()
+    for index, league in enumerate(check_selection):
+        with loading_indicator(f'Checking {league} · {index + 1} of {len(check_selection)}', loading_theme):
+            st.session_state.results[league] = check_league(league, TOURNAMENTS[league], force_refresh=True)
 
 def render_finding(league, key, issue):
     title = 'Forfeit notice' if issue.get('kind') == 'forfeit' else ISSUE_TITLES[key]
@@ -533,23 +395,8 @@ def render_finding(league, key, issue):
                 game_details(game)
 
 
-st.markdown('<div id="competition-results" tabindex="-1" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
 results = st.session_state.get('results', {})
-visible = {}
-hidden_counts = {}
-current_ids = set()
-for league, result in results.items():
-    visible[league] = dict(result)
-    hidden_counts[league] = 0
-    for key in ISSUE_TITLES:
-        visible[league][key] = []
-        for issue in result.get(key, []):
-            identity = finding_id(league, TOURNAMENTS[league], key, issue)
-            current_ids.add(identity)
-            if identity in ignored:
-                hidden_counts[league] += 1
-            else:
-                visible[league][key].append(issue)
+visible = results
 
 for column, league in zip(st.columns(3), TOURNAMENTS):
     with column, st.container(border=True):
@@ -563,16 +410,11 @@ for column, league in zip(st.columns(3), TOURNAMENTS):
                 st.warning('Check incomplete — retry')
             elif total:
                 st.error(f'{total} issue(s) to review')
-            elif hidden_counts[league]:
-                st.success('No unignored invalid entries')
             else:
                 st.success('No invalid entries found')
             st.caption(f"Missing players: {len(result['missing_player_issues'])} · Format: {len(result['format_issues'])} · Race-to: {len(result['race_to_issues'])} · Scores: {len(result['score_issues'])} · Players: {len(result['player_issues'])}")
             forfeits = sum(issue.get('kind') == 'forfeit' for issue in result['special_scores'])
             st.caption(f"Forfeit notices: {forfeits} · Other special results: {len(result['special_scores']) - forfeits}")
-            st.caption(f"Ignored findings: {hidden_counts[league]}")
-            if result.get('from_cache'):
-                st.caption('Using a recent completed check')
             st.caption(f"Last checked: {result['checked_at']} (Amsterdam)")
 
 if not results:
@@ -584,48 +426,7 @@ for league, result in visible.items():
         for issue in result[key]:
             with st.container(border=True):
                 render_finding(league, key, issue)
-                identity = finding_id(league, TOURNAMENTS[league], key, issue)
-                if can_manage:
-                    with st.expander('Ignore this finding for everyone'):
-                        reason = st.text_input('Reason (optional, visible to everyone)', key='reason_' + identity, max_chars=500)
-                        if action_button('Ignore from now on', key='ignore_' + identity):
-                            try:
-                                with loading_indicator('Saving shared findings…'):
-                                    store.ignore(finding_record(league, TOURNAMENTS[league], key, issue, reason), password)
-                                st.session_state.review_feedback = 'Finding ignored for everyone. Changed details will be shown again.'
-                                st.rerun()
-                            except StoreError as error:
-                                st.error(str(error))
-
-with st.expander(f'Previously ignored findings ({len(ignored)})'):
-    if not ignored:
-        st.caption('No saved ignored findings.' if store_ready else 'Connect shared storage to see ignored findings.')
-    for identity, record in sorted(ignored.items(), key=lambda pair: pair[1]['ignored_at'], reverse=True):
-        with st.container(border=True):
-            render_finding(record['league'], record['kind'], record['snapshot'])
-            st.caption('Ignored at: ' + record['ignored_at'])
-            if record.get('reason'):
-                st.text('Reason: ' + record['reason'])
-            if identity in current_ids:
-                st.caption('Currently present and hidden from the main results.')
-            else:
-                st.caption('Saved finding; no exact match in the currently loaded checks. It may have changed, been resolved, or not been checked.')
-            if can_manage and action_button('Restore for everyone', key='restore_' + identity):
-                try:
-                    with loading_indicator('Saving shared findings…'):
-                        store.restore(record, password)
-                    st.session_state.review_feedback = 'Restore requested. If the finding still exists it will appear in the main results.'
-                    st.rerun()
-                except StoreError as error:
-                    st.error(str(error))
 
 st.caption('Untouched fixtures are skipped. Missing names on recorded results are flagged. Participation is checked only when all six games have complete player selections. Straightpool is excluded from numeric score checks. Forfeits are notices, not score errors.')
 
 
-
-if st.session_state.get("pending_load"):
-    poll_load()
-
-scroll_request = st.session_state.pop("scroll_request", None)
-if scroll_request:
-    scroll_to_results(scroll_request)
