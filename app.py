@@ -161,7 +161,7 @@ st.markdown('''<style>
 .app-header {margin-bottom:8px;}
 </style><div class="app-header">
 <h1>🎱 Pool Noord-Holland checker ☕</h1>
-<p>App last updated: 16 October 2026, 13:13 (Amsterdam)</p>
+<p>App last updated: 16 October 2026, 13:19 (Amsterdam)</p>
 <p>Have an issue or an idea for improvement? Please contact <a href="mailto:mishtershinclair@gmail.com">Matt Sinclair</a>.</p>
 </div>''', unsafe_allow_html=True)
 
@@ -237,11 +237,11 @@ def show_doubles_table(rows):
         return
     partnerships = 'Partnership' in rows[0] and 'Win %' in rows[0]
     standings = ('Player' in rows[0] and 'Win %' in rows[0]) or partnerships
-    columns = (['Rank', 'Player', 'Won', 'Played', 'Win %',
+    columns = (['Rank', 'Player', 'Played', 'Won', 'Win %',
                 'Racks won', 'Racks lost', 'Difference', 'Participation %']
                if standings else list(rows[0]))
     if partnerships:
-        columns = ['Rank', 'Partnership', 'Won', 'Played', 'Win %', 'Racks won', 'Racks lost', 'Difference', 'Status']
+        columns = ['Rank', 'Partnership', 'Played', 'Won', 'Win %', 'Racks won', 'Racks lost', 'Difference', 'Status']
     labels = {'Rank': '#', 'Racks won': 'Frames<br>won', 'Racks lost': 'Frames<br>lost',
               'Difference': 'Frame<br>difference', 'Participation %': 'Participation<br>%'}
     header = ''.join('<th>' + (labels.get(column, escape(column)) if standings else escape(column)) + '</th>' for column in columns)
