@@ -44,6 +44,21 @@ def fixture_location(fixture):
     return venue['name'], venue.get('address') or '', source
 
 
+def schedule_sort_key(match):
+    order = {'Eerste klasse': 1, 'Tweede klasse': 2, 'Derde klasse': 3}
+    return (order.get(match['league'], 99), match['team_a'].casefold(), str(match['match_no']))
+
+
+def schedule_card(match):
+    number = {'Eerste klasse': 1, 'Tweede klasse': 2, 'Derde klasse': 3}.get(match['league'], '?')
+    safe = {key: escape(str(value), quote=True) for key, value in match.items()}
+    return (f'<article class="schedule-card"><div class="schedule-heading">'
+            f'<span class="league-ball league-ball-{number}" role="img" aria-label="{safe["league"]}" title="{safe["league"]}">'
+            f'<span>{number}</span></span><span>Match {safe["match_no"]}</span></div>'
+            f'<div class="schedule-teams">{safe["team_a"]} vs {safe["team_b"]}</div>'
+            f'<div class="schedule-venue">📍 {safe["venue"]}</div></article>')
+
+
 def get_scheduled_matches(day_offset=0, now=None, progress=None):
     progress = progress or (lambda value, label: None)
     """Read only the three fixture lists, independently of result validation."""
@@ -88,7 +103,7 @@ def get_scheduled_matches(day_offset=0, now=None, progress=None):
         except (requests.RequestException, ValueError, TypeError, AttributeError):
             result['errors'].append(league)
         progress((list(TOURNAMENTS).index(league) + 1) / len(TOURNAMENTS), f'Read {league} schedule')
-    result['matches'].sort(key=lambda match: (match['league'], match['time'], str(match['match_no'])))
+    result['matches'].sort(key=schedule_sort_key)
     return result
 
 
@@ -161,7 +176,7 @@ st.markdown('''<style>
 .app-header {margin-bottom:8px;}
 </style><div class="app-header">
 <h1>🎱 Pool Noord-Holland checker ☕</h1>
-<p>App last updated: 16 October 2026, 13:22 (Amsterdam)</p>
+<p>App last updated: 20 October 2026, 10:29 (Amsterdam)</p>
 <p>Have an issue or an idea for improvement? Please contact <a href="mailto:mishtershinclair@gmail.com">Matt Sinclair</a>.</p>
 </div>''', unsafe_allow_html=True)
 
@@ -210,7 +225,7 @@ if schedule:
     st.markdown('<div id="schedule-results" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     day_label = 'tomorrow' if schedule['day_offset'] else 'today'
     st.subheader(f"{day_label.capitalize()}'s matches · {schedule['date_label']}")
-    st.caption('Times shown in Amsterdam local time. Select either schedule button to refresh.')
+    st.caption('Select either schedule button to refresh.')
     if schedule['errors']:
         st.warning('Could not read fixtures for: ' + ', '.join(schedule['errors']) + '. Please retry; the schedule may be incomplete.')
     for league, count in schedule['undated'].items():
@@ -220,15 +235,21 @@ if schedule:
             st.info(f'No matches for {day_label} found in the available dated fixtures.')
         else:
             st.info(f'No matches scheduled for {day_label} in these three leagues.')
-    for match in schedule['matches']:
-        with st.container(border=True):
-            st.caption(f"{match['league']} · {match['time']} · Match {match['match_no']}")
-            st.subheader(f"{match['team_a']} vs {match['team_b']}")
-            st.text('📍 ' + match['venue'])
-            if match['address']:
-                st.text(match['address'])
-            if match['venue_source']:
-                st.caption(match['venue_source'])
+    st.markdown("""<style>
+.schedule-card {border:2px solid #788493;border-radius:12px;padding:16px 18px;margin:12px 0;
+ border-color:color-mix(in srgb, var(--text-color, #edf0f5) 48%, var(--background-color, #0e1117));}
+.schedule-heading {display:flex;align-items:center;gap:12px;font-size:16px;font-weight:600;}
+.league-ball {display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:44px;height:44px;
+ border-radius:50%;box-shadow:inset -4px -5px 7px #0005,inset 3px 3px 5px #fff6,0 1px 3px #0004;}
+.league-ball-1 {background:#edbf16;}.league-ball-2 {background:#245bd5;}.league-ball-3 {background:#db3235;}
+.league-ball span {display:flex;align-items:center;justify-content:center;width:25px;height:25px;
+ background:#fff;color:#171717;border-radius:50%;font-size:20px;font-weight:800;}
+.schedule-teams {font-size:23px;font-weight:650;line-height:1.35;margin:12px 0 8px;overflow-wrap:anywhere;}
+.schedule-venue {font-size:20px;line-height:1.4;overflow-wrap:anywhere;}
+@media(max-width:600px){.schedule-card{padding:14px}.schedule-teams{font-size:21px}}
+</style>""", unsafe_allow_html=True)
+    for match in sorted(schedule['matches'], key=schedule_sort_key):
+        st.markdown(schedule_card(match), unsafe_allow_html=True)
 
 
 def show_doubles_table(rows):
@@ -263,13 +284,13 @@ def show_doubles_table(rows):
     table_class = 'doubles-large doubles-standings' if standings else 'doubles-large'
     st.markdown('<style>.doubles-scroll {overflow-x:auto;} '
                 '.doubles-scroll .doubles-large {width:auto;border-collapse:collapse;font-size:18px;line-height:1.3;}'
-                '.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td {padding:6px 8px;text-align:left;border-bottom:1px solid #a5afbd80;white-space:nowrap;}'
+                '.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td {padding:6px 8px;text-align:left;border-bottom:1px solid #788493;border-bottom-color:color-mix(in srgb, var(--text-color, #edf0f5) 48%, var(--background-color, #0e1117));white-space:nowrap;}'
                 '.doubles-scroll .doubles-large th {font-size:15px;font-weight:700;vertical-align:bottom;}'
                 '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:center;}'
                 '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
                 '.doubles-person {width:180px;min-width:130px;max-width:180px;white-space:normal!important;overflow-wrap:anywhere;} '
                 '.doubles-player + .doubles-player {margin-top:7px;padding-top:7px;position:relative;} '
-                '.doubles-player + .doubles-player::before {content:"";position:absolute;top:0;left:0;width:32px;border-top:1px solid #a5afbd80;} '
+                '.doubles-player + .doubles-player::before {content:"";position:absolute;top:0;left:0;width:32px;border-top:1px solid #788493;border-top-color:color-mix(in srgb, var(--text-color, #edf0f5) 38%, var(--background-color, #0e1117));} '
                 '.doubles-player {font-size:18px;white-space:normal;max-width:180px;overflow-wrap:anywhere;} '
                 '@media(max-width:600px){.doubles-person{width:130px;min-width:110px;max-width:140px}.doubles-player{font-size:16px;max-width:130px}.doubles-team{max-width:130px!important}.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td{padding:6px 5px}} '
                 '.doubles-team {font-size:12px;opacity:.88;white-space:normal;max-width:240px;margin-top:2px;}'
@@ -278,15 +299,15 @@ def show_doubles_table(rows):
 
 
 DOUBLES_SEASONS = {
-    '2026–27': dict(TOURNAMENTS),
-    '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
+    '2026–27': dict(TOURNAMENTS, **{'Tweede Divisie Noord': 83574889, 'Derde Divisie Noord-West': 83574898}),
+    '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750, 'Tweede Divisie Noord': 61204927, 'Derde Divisie Noord-West': 61204939},
     '2024–25': {'Eerste klasse': 46283263, 'Tweede klasse': 46283257, 'Derde klasse': 46283269},
 }
 matching_version = getattr(doubles_mvp, 'NAME_MATCHING_VERSION', 'older version')
-matching_ready = matching_version == '2026-10-13.1' and getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None) == '2026-10-13.1'
-if st.session_state.get('doubles_ranking_version') != (10, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None)):
+matching_ready = matching_version == '2026-10-13.1' and getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None) == '2026-10-13.1' and getattr(doubles_mvp, 'DIVISION_RANKING_VERSION', None) == 1
+if st.session_state.get('doubles_ranking_version') != (11, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None)):
     st.session_state.pop('doubles_results', None)
-    st.session_state.doubles_ranking_version = (10, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None))
+    st.session_state.doubles_ranking_version = (11, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None))
 
 
 with st.container(border=True):
@@ -299,12 +320,13 @@ with st.container(border=True):
     for season, tournaments in DOUBLES_SEASONS.items():
         heading = f'{season} · Active season' if season == '2026–27' else f'*{season}*'
         st.markdown(f'### {heading}')
-        for column, label in zip(st.columns(4), [*tournaments, 'All leagues']):
+        for column, label in zip(st.columns(len(tournaments) + 1), [*tournaments, 'All leagues']):
             with column:
                 st.button(label, key='mvp_' + season + '_' + label, disabled=busy or not matching_ready,
                           on_click=queue_search, args=('mvp', season, list(tournaments) if label == 'All leagues' else [label]),
                           type='primary', use_container_width=True)
-    st.caption('Ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
+    st.caption('Noord-Holland classes: ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
+    st.caption('National divisions: win percentage, then wins and frame difference; at least 7 appearances to qualify. Players below the minimum remain visible separately.')
     st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results. Confirmed historical names and unique spelling variants are matched automatically; ambiguous names remain excluded.')
 
 active_season = st.session_state.get('doubles_active_season', '2026–27')
@@ -313,7 +335,7 @@ if mvp_results:
     st.markdown('<div id="mvp-results" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     season_label = f'{active_season} · Active season' if active_season == '2026–27' else f'*{active_season}*'
     st.subheader(f'Doubles standings · {season_label}')
-    for tab, league in zip(st.tabs(list(TOURNAMENTS), key='doubles_active_league', on_change='rerun'), TOURNAMENTS):
+    for tab, league in zip(st.tabs(list(DOUBLES_SEASONS[active_season]), key='doubles_active_league', on_change='rerun'), DOUBLES_SEASONS[active_season]):
         with tab:
             standing = mvp_results.get(league, {})
             if not standing:
@@ -336,10 +358,15 @@ if mvp_results:
                 st.caption('All pairs ranked by win percentage, wins and frame difference. Provisional = fewer than 5 valid matches together; excluded from Top 3.')
                 show_doubles_table(standing['partnerships'])
             st.subheader('Individual doubles standings')
+            if standing.get('division_ranking'):
+                st.caption('Win percentage first · minimum 7 appearances · ties broken by wins, then frame difference.')
             if standing['table']:
                 show_doubles_table(standing['table'])
             else:
-                st.info('No completed, valid played doubles results could be included yet.')
+                st.info('No player has reached 7 appearances yet.' if standing.get('division_ranking') else 'No completed, valid played doubles results could be included yet.')
+            if standing.get('not_qualified'):
+                with st.expander('Not yet qualified · fewer than 7 appearances', expanded=True):
+                    show_doubles_table(standing['not_qualified'])
             with st.expander('Counted doubles results'):
                 show_doubles_table(standing['history'])
             if standing['forfeits']:
