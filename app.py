@@ -299,12 +299,12 @@ def show_doubles_table(rows):
 
 
 DOUBLES_SEASONS = {
-    '2026–27': dict(TOURNAMENTS, **{'Tweede Divisie Noord': 83574889, 'Derde Divisie Noord-West': 83574898}),
-    '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750, 'Tweede Divisie Noord': 61204927, 'Derde Divisie Noord-West': 61204939},
+    '2026–27': dict(TOURNAMENTS),
+    '2025–26': {'Eerste klasse': 61204738, 'Tweede klasse': 61204744, 'Derde klasse': 61204750},
     '2024–25': {'Eerste klasse': 46283263, 'Tweede klasse': 46283257, 'Derde klasse': 46283269},
 }
 matching_version = getattr(doubles_mvp, 'NAME_MATCHING_VERSION', 'older version')
-matching_ready = matching_version == '2026-10-13.1' and getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None) == '2026-10-13.1' and getattr(doubles_mvp, 'DIVISION_RANKING_VERSION', None) == 1
+matching_ready = matching_version == '2026-10-13.1' and getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None) == '2026-10-13.1'
 if st.session_state.get('doubles_ranking_version') != (11, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None)):
     st.session_state.pop('doubles_results', None)
     st.session_state.doubles_ranking_version = (11, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None))
@@ -326,8 +326,25 @@ with st.container(border=True):
                           on_click=queue_search, args=('mvp', season, list(tournaments) if label == 'All leagues' else [label]),
                           type='primary', use_container_width=True)
     st.caption('Noord-Holland classes: ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
-    st.caption('National divisions: win percentage, then wins and frame difference; at least 7 appearances to qualify. Players below the minimum remain visible separately.')
     st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results. Confirmed historical names and unique spelling variants are matched automatically; ambiguous names remain excluded.')
+
+def load_selected_league():
+    season = st.session_state.get('doubles_active_season', '2026–27')
+    league = st.session_state.get('doubles_active_league')
+    if (matching_ready and league in DOUBLES_SEASONS.get(season, {})
+            and not st.session_state.get('active_search')
+            and league not in st.session_state.get('doubles_results', {}).get(season, {})):
+        queue_search('mvp', season, [league])
+
+
+def league_heading(league, title):
+    number = {'Eerste klasse': 1, 'Tweede klasse': 2, 'Derde klasse': 3}[league]
+    colour = {1: '#edbf16', 2: '#245bd5', 3: '#db3235'}[number]
+    st.markdown(f'''<div style="display:flex;align-items:center;gap:12px;margin:18px 0 10px">
+<span role="img" aria-label="{escape(league)}" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:44px;height:44px;border-radius:50%;background:{colour};box-shadow:inset -4px -5px 7px #0005,inset 3px 3px 5px #fff6">
+<span style="display:flex;align-items:center;justify-content:center;width:25px;height:25px;background:white;color:#171717;border-radius:50%;font-size:20px;font-weight:800">{number}</span></span>
+<div><div style="font-size:15px">{escape(league)}</div><div style="font-size:23px;font-weight:650">{escape(title)}</div></div></div>''', unsafe_allow_html=True)
+
 
 active_season = st.session_state.get('doubles_active_season', '2026–27')
 mvp_results = st.session_state.get('doubles_results', {}).get(active_season, {})
@@ -335,11 +352,13 @@ if mvp_results:
     st.markdown('<div id="mvp-results" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     season_label = f'{active_season} · Active season' if active_season == '2026–27' else f'*{active_season}*'
     st.subheader(f'Doubles standings · {season_label}')
-    for tab, league in zip(st.tabs(list(DOUBLES_SEASONS[active_season]), key='doubles_active_league', on_change='rerun'), DOUBLES_SEASONS[active_season]):
+    if st.session_state.get('doubles_active_league') not in DOUBLES_SEASONS[active_season]:
+        st.session_state.doubles_active_league = next(iter(DOUBLES_SEASONS[active_season]))
+    for tab, league in zip(st.tabs(list(DOUBLES_SEASONS[active_season]), key='doubles_active_league', on_change=load_selected_league), DOUBLES_SEASONS[active_season]):
         with tab:
             standing = mvp_results.get(league, {})
             if not standing:
-                st.info('Select this league above to load its doubles table.')
+                st.info('Loading this league…' if st.session_state.get('active_search', {}).get('kind') == 'mvp' and league in st.session_state.active_search['leagues'] else 'Select this tab to load its doubles results.' if not busy else 'A search is running. Select this tab again when it finishes.')
                 continue
             if standing.get('error'):
                 st.error('Could not load this league. Please refresh the doubles tables.')
@@ -348,7 +367,7 @@ if mvp_results:
                 st.warning(f"Provisional standings: {len(standing['warnings'])} game or fixture problem(s) need review. Affected results have not been counted.")
                 st.caption('Note: This can happen when a player changes their name or a substitute is no longer listed on the team. Other causes are possible—expand “Results requiring review” below for details.')
             st.caption(f"{standing['counted']} played doubles games counted · {len(standing['forfeits'])} forfeit notice(s) · Updated {standing['checked_at']} (Amsterdam)")
-            st.subheader('Top 3 Doubles Partnerships')
+            league_heading(league, 'Top 3 Doubles Partnerships')
             st.caption('5-match minimum · Ranked by win percentage, then wins, then frame difference. Exact ties share a rank; tied pairs are displayed by name. Top 3 shows up to three qualifying partnerships.')
             if standing['top_partnerships']:
                 show_doubles_table(standing['top_partnerships'])
@@ -357,16 +376,11 @@ if mvp_results:
             with st.expander('Full partnership standings', expanded=True):
                 st.caption('All pairs ranked by win percentage, wins and frame difference. Provisional = fewer than 5 valid matches together; excluded from Top 3.')
                 show_doubles_table(standing['partnerships'])
-            st.subheader('Individual doubles standings')
-            if standing.get('division_ranking'):
-                st.caption('Win percentage first · minimum 7 appearances · ties broken by wins, then frame difference.')
+            league_heading(league, 'Individual doubles standings')
             if standing['table']:
                 show_doubles_table(standing['table'])
             else:
-                st.info('No player has reached 7 appearances yet.' if standing.get('division_ranking') else 'No completed, valid played doubles results could be included yet.')
-            if standing.get('not_qualified'):
-                with st.expander('Not yet qualified · fewer than 7 appearances', expanded=True):
-                    show_doubles_table(standing['not_qualified'])
+                st.info('No completed, valid played doubles results could be included yet.')
             with st.expander('Counted doubles results'):
                 show_doubles_table(standing['history'])
             if standing['forfeits']:
