@@ -201,7 +201,7 @@ st.markdown('''<style>
 .app-header {margin-bottom:8px;}
 </style><div class="app-header">
 <h1>🎱 Pool Noord-Holland checker ☕</h1>
-<p>App last updated: 20 October 2026, 11:31 (Amsterdam)</p>
+<p>App last updated: 20 October 2026, 11:46 (Amsterdam)</p>
 <p>Have an issue or an idea for improvement? Please contact <a href="mailto:mishtershinclair@gmail.com">Matt Sinclair</a>.</p>
 </div>''', unsafe_allow_html=True)
 
@@ -336,23 +336,26 @@ if st.session_state.get('doubles_ranking_version') != (11, matching_version, get
     st.session_state.doubles_ranking_version = (11, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None))
 
 
+st.markdown('''<style>[class*="st-key-poolbutton_1_"] button::before{content:"";display:inline-block;flex-shrink:0;width:30px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23edbf16%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E1%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_2_"] button::before{content:"";display:inline-block;flex-shrink:0;width:30px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23245bd5%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E2%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_3_"] button::before{content:"";display:inline-block;flex-shrink:0;width:30px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23db3235%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E3%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_123_"] button::before{content:"";display:inline-block;flex-shrink:0;width:72px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2290%22%20height%3D%2230%22%20viewBox%3D%220%200%2090%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23edbf16%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E1%3C%2Ftext%3E%3Ccircle%20cx%3D%2245%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23245bd5%22%2F%3E%3Ccircle%20cx%3D%2245%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2245%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E2%3C%2Ftext%3E%3Ccircle%20cx%3D%2275%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23db3235%22%2F%3E%3Ccircle%20cx%3D%2275%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2275%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E3%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_"] button {gap:8px;min-height:48px;} [class*="st-key-poolbutton_"] button p {font-size:17px!important;}</style>''', unsafe_allow_html=True)
+
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
     if not matching_ready:
         st.error('The doubles checker file is out of date. Replace doubles_mvp.py with the matching download, then reboot the Streamlit app.')
     st.caption('Choose a season and league, or load all three leagues for that season.')
-    st.caption('Active-season checks skip unplayed future fixtures. Early-played matches and fixtures without a clear date are included.')
     mvp_selection = None
     for season, tournaments in DOUBLES_SEASONS.items():
         heading = f'{season} · Active season' if season == '2026–27' else f'*{season}*'
         st.markdown(f'### {heading}')
         for column, label in zip(st.columns(len(tournaments) + 1), [*tournaments, 'All leagues']):
-            with column:
-                st.button(label, key='mvp_' + season + '_' + label, disabled=busy or not matching_ready,
+            with column, st.container(key='poolbutton_' + str({'Eerste klasse': 1, 'Tweede klasse': 2, 'Derde klasse': 3}.get(label, 123)) + '_' + season):
+                st.button(label.replace(' klasse', ''), key='mvp_' + season + '_' + label, disabled=busy or not matching_ready,
                           on_click=queue_search, args=('mvp', season, list(tournaments) if label == 'All leagues' else [label]),
                           type='primary', use_container_width=True)
-    st.caption('Noord-Holland classes: ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
-    st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results. Confirmed historical names and unique spelling variants are matched automatically; ambiguous names remain excluded.')
+    with st.expander('See details'):
+        st.caption('Active-season checks skip unplayed future fixtures. Early-played matches and fixtures without a clear date are included.')
+        st.caption('Noord-Holland classes: ranked by games won, then win percentage, then frame difference, then participation percentage. Exact ties share a rank. All players remain visible; no minimum-participation cutoff is applied. Forfeits contribute nothing to player totals.')
+        st.caption('Participation = played doubles / completed fixtures of the team(s) represented. Forfeits do not count as player appearances. Former members keep their recorded results. Confirmed historical names and unique spelling variants are matched automatically; ambiguous names remain excluded.')
 
 def load_selected_league():
     season = st.session_state.get('doubles_active_season', '2026–27')
@@ -425,7 +428,7 @@ if mvp_results:
 st.subheader('🔎 Check competition results')
 check_selection = None
 for column, label in zip(st.columns(4), [*TOURNAMENTS, 'All leagues']):
-    with column:
+    with column, st.container(key='poolbutton_123_check' if label == 'All leagues' else 'competition_' + label):
         st.button(label, key='check_' + label, disabled=busy, on_click=queue_search,
                   args=('check', None, list(TOURNAMENTS) if label == 'All leagues' else [label]),
                   type='primary', use_container_width=True)
