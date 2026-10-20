@@ -310,7 +310,7 @@ def show_doubles_table(rows):
     table_class = 'doubles-large doubles-standings' if standings else 'doubles-large'
     st.markdown('<style>.doubles-scroll {overflow-x:auto;} '
                 '.doubles-scroll .doubles-large {width:auto;border-collapse:collapse;font-size:18px;line-height:1.3;}'
-                '.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td {padding:6px 8px;text-align:left;border-bottom:1px solid #788493;border-bottom-color:color-mix(in srgb, var(--text-color, #edf0f5) 48%, var(--background-color, #0e1117));white-space:nowrap;}'
+                '.doubles-scroll .doubles-large th,.doubles-scroll .doubles-large td {padding:6px 8px;text-align:left;border-bottom:2px solid #8995a5;border-bottom-color:color-mix(in srgb, var(--text-color, #edf0f5) 65%, var(--background-color, #0e1117));white-space:nowrap;}'
                 '.doubles-scroll .doubles-large th {font-size:15px;font-weight:700;vertical-align:bottom;}'
                 '.doubles-scroll .doubles-standings th,.doubles-scroll .doubles-standings td {text-align:center;}'
                 '.doubles-scroll .doubles-standings th:nth-child(2),.doubles-scroll .doubles-standings td.doubles-person {text-align:left;}'
@@ -336,7 +336,7 @@ if st.session_state.get('doubles_ranking_version') != (11, matching_version, get
     st.session_state.doubles_ranking_version = (11, matching_version, getattr(doubles_mvp, 'PARTNERSHIP_VERSION', None))
 
 
-st.markdown('''<style>[class*="st-key-poolbutton_1_"] button::before{content:"";display:inline-block;flex-shrink:0;width:30px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23edbf16%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E1%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_2_"] button::before{content:"";display:inline-block;flex-shrink:0;width:30px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23245bd5%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E2%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_3_"] button::before{content:"";display:inline-block;flex-shrink:0;width:30px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23db3235%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E3%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_123_"] button::before{content:"";display:inline-block;flex-shrink:0;width:72px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2290%22%20height%3D%2230%22%20viewBox%3D%220%200%2090%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23edbf16%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E1%3C%2Ftext%3E%3Ccircle%20cx%3D%2245%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23245bd5%22%2F%3E%3Ccircle%20cx%3D%2245%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2245%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E2%3C%2Ftext%3E%3Ccircle%20cx%3D%2275%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23db3235%22%2F%3E%3Ccircle%20cx%3D%2275%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2275%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E3%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_"] button {gap:8px;min-height:48px;} [class*="st-key-poolbutton_"] button p {font-size:17px!important;}</style>''', unsafe_allow_html=True)
+st.markdown('''<style>[class*="st-key-poolbutton_1_"] button::before{content:"";display:inline-block;flex-shrink:0;width:30px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23edbf16%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E1%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_2_"] button::before{content:"";display:inline-block;flex-shrink:0;width:30px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23245bd5%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E2%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_3_"] button::before{content:"";display:inline-block;flex-shrink:0;width:30px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2230%22%20height%3D%2230%22%20viewBox%3D%220%200%2030%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23db3235%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E3%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_123_"] button::before{content:"";display:inline-block;flex-shrink:0;width:72px;height:30px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2290%22%20height%3D%2230%22%20viewBox%3D%220%200%2090%2030%22%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23edbf16%22%2F%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2215%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E1%3C%2Ftext%3E%3Ccircle%20cx%3D%2245%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23245bd5%22%2F%3E%3Ccircle%20cx%3D%2245%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2245%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E2%3C%2Ftext%3E%3Ccircle%20cx%3D%2275%22%20cy%3D%2215%22%20r%3D%2214%22%20fill%3D%22%23db3235%22%2F%3E%3Ccircle%20cx%3D%2275%22%20cy%3D%2215%22%20r%3D%228%22%20fill%3D%22white%22%2F%3E%3Ctext%20x%3D%2275%22%20y%3D%2219%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2212%22%20font-weight%3D%22bold%22%20fill%3D%22%23171717%22%3E3%3C%2Ftext%3E%3C%2Fsvg%3E") center/contain no-repeat;}[class*="st-key-poolbutton_"] button {gap:10px;min-height:52px;justify-content:flex-start;padding:8px 12px;text-align:left;} [class*="st-key-poolbutton_"] button::before {width:72px!important;background-position:left center!important;background-size:auto 30px!important;} [class*="st-key-poolbutton_"] button p {font-size:17px!important;}</style>''', unsafe_allow_html=True)
 
 with st.container(border=True):
     st.subheader('🏆 Doubles MVP')
@@ -415,9 +415,6 @@ if mvp_results:
                 st.info('No completed, valid played doubles results could be included yet.')
             with st.expander('Counted doubles results'):
                 show_doubles_table(standing['history'])
-            if standing['forfeits']:
-                with st.expander('Forfeit results — excluded from ranking'):
-                    show_doubles_table(standing['forfeits'])
             if standing['warnings']:
                 with st.expander('Results requiring review'):
                     show_doubles_table(standing['warnings'])
@@ -481,14 +478,28 @@ def render_finding(league, key, issue):
 
 st.markdown('<div id="check-results" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
 results = st.session_state.get('results', {})
-visible = results
+def visible_finding(issue):
+    if issue.get('kind') == 'forfeit':
+        return False
+    start = scheduled_start(issue.get('fixture', {}).get('date'))
+    return start is None or start.date() <= datetime.now(AMSTERDAM).date()
+
+
+visible = {league: {**result, **{key: [issue for issue in result[key] if visible_finding(issue)]
+                               for key in ISSUE_TITLES}} for league, result in results.items()}
+st.markdown('''<style>
+.check-status {display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:21px;line-height:1.4;padding:14px;border-radius:8px;background:#27844718;}
+.check-status .check-tick {font-size:42px;font-weight:800;color:#28b463;line-height:1;}
+.check-status.pending {background:#3388cc18;}
+[class*="st-key-finding_"] > div {border-color:#8995a5!important;border-width:2px!important;}
+</style>''', unsafe_allow_html=True)
 
 for column, league in zip(st.columns(3), TOURNAMENTS):
     with column, st.container(border=True):
         st.subheader(league)
         result = visible.get(league)
         if result is None:
-            st.info('Not checked yet')
+            st.markdown('<div class="check-status pending">Not checked yet</div>', unsafe_allow_html=True)
         else:
             total = sum(len(result[key]) for key in ERROR_KEYS)
             if result['incomplete']:
@@ -496,11 +507,10 @@ for column, league in zip(st.columns(3), TOURNAMENTS):
             elif total:
                 st.error(f'{total} issue(s) to review')
             else:
-                st.success('No invalid entries found')
-            st.caption(f"Missing players: {len(result['missing_player_issues'])} · Format: {len(result['format_issues'])} · Race-to: {len(result['race_to_issues'])} · Scores: {len(result['score_issues'])} · Players: {len(result['player_issues'])}")
-            forfeits = sum(issue.get('kind') == 'forfeit' for issue in result['special_scores'])
-            st.caption(f"Forfeit notices: {forfeits} · Other special results: {len(result['special_scores']) - forfeits}")
-            st.caption(f"Last checked: {result['checked_at']} (Amsterdam)")
+                st.markdown('<div class="check-status"><span>No invalid entries found</span><span class="check-tick" aria-label="Passed">✓</span></div>', unsafe_allow_html=True)
+            if total or result['incomplete']:
+                st.caption(f"Missing players: {len(result['missing_player_issues'])} · Format: {len(result['format_issues'])} · Race-to: {len(result['race_to_issues'])} · Scores: {len(result['score_issues'])} · Players: {len(result['player_issues'])}")
+                st.caption(f"Last checked: {result['checked_at']} (Amsterdam)")
 
 if not results:
     st.info('Select a league or “All leagues” under Check competition results to retrieve results. A full check can take a few minutes.')
@@ -508,11 +518,11 @@ for league, result in visible.items():
     if result['incomplete']:
         st.warning(f'{league}: Some CueScore data could not be read. Findings are partial; please retry.')
     for key in ISSUE_TITLES:
-        for issue in result[key]:
-            with st.container(border=True):
+        for index, issue in enumerate(result[key]):
+            with st.container(border=True, key=f'finding_{league}_{key}_{index}'):
                 render_finding(league, key, issue)
 
-st.caption('Untouched fixtures are skipped. Missing names on recorded results are flagged. Participation is checked only when all six games have complete player selections. Straightpool is excluded from numeric score checks. Forfeits are notices, not score errors.')
+st.caption('Untouched fixtures are skipped. Missing names on recorded results are flagged. Participation is checked only when all six games have complete player selections. Straightpool is excluded from numeric score checks. Forfeits and future-dated findings are hidden.')
 
 
 
