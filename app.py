@@ -176,7 +176,7 @@ st.markdown('''<style>
 .app-header {margin-bottom:8px;}
 </style><div class="app-header">
 <h1>🎱 Pool Noord-Holland checker ☕</h1>
-<p>App last updated: 20 October 2026, 10:29 (Amsterdam)</p>
+<p>App last updated: 20 October 2026, 10:52 (Amsterdam)</p>
 <p>Have an issue or an idea for improvement? Please contact <a href="mailto:mishtershinclair@gmail.com">Matt Sinclair</a>.</p>
 </div>''', unsafe_allow_html=True)
 
@@ -337,13 +337,16 @@ def load_selected_league():
         queue_search('mvp', season, [league])
 
 
-def league_heading(league, title):
+def league_heading(league, title, season):
+    start_year = season.split('–')[0]
+    full_season = f'{start_year}–{int(start_year) + 1}'
+    season_label = f'Current season ({full_season})' if season == '2026–27' else full_season
     number = {'Eerste klasse': 1, 'Tweede klasse': 2, 'Derde klasse': 3}[league]
     colour = {1: '#edbf16', 2: '#245bd5', 3: '#db3235'}[number]
     st.markdown(f'''<div style="display:flex;align-items:center;gap:12px;margin:18px 0 10px">
 <span role="img" aria-label="{escape(league)}" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:44px;height:44px;border-radius:50%;background:{colour};box-shadow:inset -4px -5px 7px #0005,inset 3px 3px 5px #fff6">
 <span style="display:flex;align-items:center;justify-content:center;width:25px;height:25px;background:white;color:#171717;border-radius:50%;font-size:20px;font-weight:800">{number}</span></span>
-<div><div style="font-size:15px">{escape(league)}</div><div style="font-size:23px;font-weight:650">{escape(title)}</div></div></div>''', unsafe_allow_html=True)
+<div><div style="font-size:15px">{escape(league)} · {escape(season_label)}</div><div style="font-size:23px;font-weight:650">{escape(title)}</div></div></div>''', unsafe_allow_html=True)
 
 
 active_season = st.session_state.get('doubles_active_season', '2026–27')
@@ -367,7 +370,7 @@ if mvp_results:
                 st.warning(f"Provisional standings: {len(standing['warnings'])} game or fixture problem(s) need review. Affected results have not been counted.")
                 st.caption('Note: This can happen when a player changes their name or a substitute is no longer listed on the team. Other causes are possible—expand “Results requiring review” below for details.')
             st.caption(f"{standing['counted']} played doubles games counted · {len(standing['forfeits'])} forfeit notice(s) · Updated {standing['checked_at']} (Amsterdam)")
-            league_heading(league, 'Top 3 Doubles Partnerships')
+            league_heading(league, 'Top 3 Doubles Partnerships', active_season)
             st.caption('5-match minimum · Ranked by win percentage, then wins, then frame difference. Exact ties share a rank; tied pairs are displayed by name. Top 3 shows up to three qualifying partnerships.')
             if standing['top_partnerships']:
                 show_doubles_table(standing['top_partnerships'])
@@ -376,7 +379,7 @@ if mvp_results:
             with st.expander('Full partnership standings', expanded=True):
                 st.caption('All pairs ranked by win percentage, wins and frame difference. Provisional = fewer than 5 valid matches together; excluded from Top 3.')
                 show_doubles_table(standing['partnerships'])
-            league_heading(league, 'Individual doubles standings')
+            league_heading(league, 'Individual doubles standings', active_season)
             if standing['table']:
                 show_doubles_table(standing['table'])
             else:
