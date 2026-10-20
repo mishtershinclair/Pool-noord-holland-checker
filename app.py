@@ -49,13 +49,35 @@ def schedule_sort_key(match):
     return (order.get(match['league'], 99), match['team_a'].casefold(), str(match['match_no']))
 
 
+def team_positions(data, group):
+    standings = data.get('standings') or {}
+    rows = standings.get(str(group), []) if isinstance(standings, dict) else []
+    positions = {}
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        player = row.get('player') or {}
+        position = row.get('position')
+        if isinstance(player, dict) and player.get('teamId') and str(position).isdigit() and int(position) > 0:
+            positions[str(player['teamId'])] = int(position)
+    return positions
+
+
+def schedule_team(match, side):
+    name = escape(str(match['team_' + side]))
+    position = match.get('position_' + side)
+    if isinstance(position, int) and position > 0:
+        name += f' <span class="schedule-position">({position})</span>'
+    return name
+
+
 def schedule_card(match):
     number = {'Eerste klasse': 1, 'Tweede klasse': 2, 'Derde klasse': 3}.get(match['league'], '?')
     safe = {key: escape(str(value), quote=True) for key, value in match.items()}
     return (f'<article class="schedule-card"><div class="schedule-heading">'
             f'<span class="league-ball league-ball-{number}" role="img" aria-label="{safe["league"]}" title="{safe["league"]}">'
             f'<span>{number}</span></span><span>Match {safe["match_no"]}</span></div>'
-            f'<div class="schedule-teams">{safe["team_a"]} vs {safe["team_b"]}</div>'
+            f'<div class="schedule-teams">{schedule_team(match, "a")} vs {schedule_team(match, "b")}</div>'
             f'<div class="schedule-venue">📍 {safe["venue"]}</div></article>')
 
 
@@ -90,8 +112,11 @@ def get_scheduled_matches(day_offset=0, now=None, progress=None):
                 venue, address, source = fixture_location(fixture)
                 team_a = fixture.get('playerA') or {}
                 team_b = fixture.get('playerB') or {}
+                positions = team_positions(data, fixture.get('groupNo', 1))
                 league_matches.append({
                     'league': league, 'match_no': fixture.get('matchno', '?'),
+                    'position_a': positions.get(str(team_a.get('teamId'))),
+                    'position_b': positions.get(str(team_b.get('teamId'))),
                     'team_a': team_a.get('name') or 'Team not listed',
                     'team_b': team_b.get('name') or 'Team not listed',
                     'time': start.strftime('%H:%M'), 'venue': venue,
@@ -176,7 +201,7 @@ st.markdown('''<style>
 .app-header {margin-bottom:8px;}
 </style><div class="app-header">
 <h1>🎱 Pool Noord-Holland checker ☕</h1>
-<p>App last updated: 20 October 2026, 10:52 (Amsterdam)</p>
+<p>App last updated: 20 October 2026, 11:31 (Amsterdam)</p>
 <p>Have an issue or an idea for improvement? Please contact <a href="mailto:mishtershinclair@gmail.com">Matt Sinclair</a>.</p>
 </div>''', unsafe_allow_html=True)
 
@@ -245,6 +270,7 @@ if schedule:
 .league-ball span {display:flex;align-items:center;justify-content:center;width:25px;height:25px;
  background:#fff;color:#171717;border-radius:50%;font-size:20px;font-weight:800;}
 .schedule-teams {font-size:23px;font-weight:650;line-height:1.35;margin:12px 0 8px;overflow-wrap:anywhere;}
+.schedule-position {font-size:.78em;font-weight:400;white-space:nowrap;}
 .schedule-venue {font-size:20px;line-height:1.4;overflow-wrap:anywhere;}
 @media(max-width:600px){.schedule-card{padding:14px}.schedule-teams{font-size:21px}}
 </style>""", unsafe_allow_html=True)
@@ -352,7 +378,6 @@ def league_heading(league, title, season):
 active_season = st.session_state.get('doubles_active_season', '2026–27')
 mvp_results = st.session_state.get('doubles_results', {}).get(active_season, {})
 if mvp_results:
-    st.markdown('<div id="mvp-results" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
     season_label = f'{active_season} · Active season' if active_season == '2026–27' else f'*{active_season}*'
     st.subheader(f'Doubles standings · {season_label}')
     if st.session_state.get('doubles_active_league') not in DOUBLES_SEASONS[active_season]:
@@ -366,18 +391,19 @@ if mvp_results:
             if standing.get('error'):
                 st.error('Could not load this league. Please refresh the doubles tables.')
                 continue
+            if league == st.session_state.get('doubles_active_league'):
+                st.markdown('<div id="mvp-results" style="scroll-margin-top:80px"></div>', unsafe_allow_html=True)
             if standing['warnings']:
                 st.warning(f"Provisional standings: {len(standing['warnings'])} game or fixture problem(s) need review. Affected results have not been counted.")
                 st.caption('Note: This can happen when a player changes their name or a substitute is no longer listed on the team. Other causes are possible—expand “Results requiring review” below for details.')
-            st.caption(f"{standing['counted']} played doubles games counted · {len(standing['forfeits'])} forfeit notice(s) · Updated {standing['checked_at']} (Amsterdam)")
             league_heading(league, 'Top 3 Doubles Partnerships', active_season)
-            st.caption('5-match minimum · Ranked by win percentage, then wins, then frame difference. Exact ties share a rank; tied pairs are displayed by name. Top 3 shows up to three qualifying partnerships.')
+            with st.expander('See details'):
+                st.caption('5-match minimum · Ranked by win percentage, then wins, then frame difference. Exact ties share a rank; tied pairs are displayed by name. Top 3 shows up to three qualifying partnerships. Pairs below the minimum remain in the full standings as provisional.')
             if standing['top_partnerships']:
                 show_doubles_table(standing['top_partnerships'])
             else:
                 st.info('No partnership has played 5 valid doubles matches together yet.')
             with st.expander('Full partnership standings', expanded=True):
-                st.caption('All pairs ranked by win percentage, wins and frame difference. Provisional = fewer than 5 valid matches together; excluded from Top 3.')
                 show_doubles_table(standing['partnerships'])
             league_heading(league, 'Individual doubles standings', active_season)
             if standing['table']:
