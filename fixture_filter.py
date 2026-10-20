@@ -2,7 +2,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-ACTIVE_TOURNAMENTS = {83574424, 83574427, 83574403}
+ACTIVE_TOURNAMENTS = {83574424, 83574427, 83574403, 83574889, 83574898}
 AMSTERDAM = ZoneInfo('Europe/Amsterdam')
 
 

@@ -19,7 +19,9 @@ from bs4 import BeautifulSoup
 # Applied only when that identity is already in the team's roster/history.
 PLAYER_ALIASES = {'1163808': ('M.Yağlı',)}
 
-RACES = {'Eerste klasse': 5, 'Tweede klasse': 5, 'Derde klasse': 4}
+RACES = {'Eerste klasse': 5, 'Tweede klasse': 5, 'Derde klasse': 4,
+         'Tweede Divisie Noord': 6, 'Derde Divisie Noord-West': 6}
+DIVISION_RANKING_VERSION = 1
 
 
 def normalise(name):
@@ -209,7 +211,10 @@ def aggregate(league, fixtures, details, rosters):
         opportunities = set().union(*(team_fixtures[team] for team in stat['team_ids']))
         return Fraction(stat['Played'], len(opportunities)) if opportunities else Fraction(0)
 
+    division = league in ('Tweede Divisie Noord', 'Derde Divisie Noord-West')
     def rank_key(stat):
+        if division:
+            return (Fraction(stat['Won'], stat['Played']), stat['Won'], stat['Racks won'] - stat['Racks lost'])
         return (stat['Won'], Fraction(stat['Won'], stat['Played']),
                 stat['Racks won'] - stat['Racks lost'], participation(stat))
     ordered = sorted(stats.values(), key=lambda row: (*(-v for v in rank_key(row)), row['Player'].casefold()))
@@ -230,6 +235,17 @@ def aggregate(league, fixtures, details, rosters):
                'Difference': stat['Racks won']-stat['Racks lost'],
                'Participation %': round(float(participation(stat)) * 100, 1)}
         (table if stat['Played'] else unranked).append(row)
+    not_qualified = []
+    if division:
+        eligible = [row for row in table if row['Played'] >= 7]
+        not_qualified = [dict(row, Rank='—') for row in table if row['Played'] < 7]
+        previous = None
+        for position, row in enumerate(eligible, 1):
+            key = (Fraction(row['Won'], row['Played']), row['Won'], row['Difference'])
+            if key != previous: rank = position
+            row['Rank'] = rank
+            previous = key
+        table = eligible
     def partnership_key(stat):
         return (Fraction(stat['Won'], stat['Played']), stat['Won'],
                 stat['Racks won'] - stat['Racks lost'])
@@ -254,7 +270,7 @@ def aggregate(league, fixtures, details, rosters):
             'Difference': stat['Racks won'] - stat['Racks lost'],
             'Status': 'Qualified' if qualified else 'Provisional'})
     top_partnerships = [row for row in partnership_table if row['Status'] == 'Qualified'][:3]
-    return {'partnerships': partnership_table, 'top_partnerships': top_partnerships,
+    return {'not_qualified': not_qualified, 'division_ranking': division, 'partnerships': partnership_table, 'top_partnerships': top_partnerships,
             'table': table, 'forfeit_only': unranked, 'warnings': warnings, 'forfeits': forfeits,
             'history': history, 'counted': counted,
             'checked_at': datetime.now(ZoneInfo('Europe/Amsterdam')).strftime('%d %B %Y %H:%M')}
